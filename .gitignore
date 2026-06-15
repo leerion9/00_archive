@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Archive data (large, crawled)
+data/naver_daily_archive/raw/
+data/naver_daily_archive/merged/
+data/naver_daily_archive/manifest/
+data/naver_daily_archive/logs/
+data/naver_daily_archive/reports/
+data/kr_symbol_master.json
+data/last_repair_symbols.txt
+data/recollect_symbols.txt
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/

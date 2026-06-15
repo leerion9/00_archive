@@ -1,0 +1,5 @@
+{
+  "worker_id": "laptop",
+  "shard_rule": "int(symbol) % 2 == 1",
+  "note": "Copy to config/worker_laptop.json and set ARCHIVE_WORKER_ID=laptop in .env"
+}

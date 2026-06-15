@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "updated_at_iso": "2026-06-14T01:21:58+00:00",
+  "year_from": 2025,
+  "year_to": 2026,
+  "years": [
+    2026,
+    2025
+  ],
+  "end_date": "20260531",
+  "price_basis": "adjusted",
+  "volume_basis": "raw"
+}

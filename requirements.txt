@@ -1,0 +1,7 @@
+python-dotenv
+requests
+beautifulsoup4
+pytest
+pandas
+finance-datareader
+pykrx
