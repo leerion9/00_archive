@@ -62,6 +62,18 @@ fetch 가드: date dedup, stale page stop, **30 page/task 상한** (`ARCHIVE_MAX
 
 ---
 
+## Git (2026-06-15)
+
+- 로컬 커밋: `491698a` (master)
+- **원격 미설정** — push는 GitHub repo URL 추가 후:
+  ```powershell
+  git remote add origin https://github.com/<user>/00_archive.git
+  git push -u origin master
+  ```
+- 수집 데이터(`raw/`, `manifest/`)는 `.gitignore` — PC 로컬 유지
+
+---
+
 ## 데이터 경로 (git 제외, PC 로컬 유지)
 
 ```
