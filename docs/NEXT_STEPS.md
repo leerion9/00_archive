@@ -23,51 +23,74 @@
 | 2 | 214370 ~ 433500 | 1,000 |
 | 3 | 433880 ~ 950250 | 947 |
 
-설정: `config/chunks.json`  
-실행:
+설정: `data/naver_daily_archive/config/chunks.json`
+
+---
+
+## fail / retry 정책 (2024부터 적용)
+
+| 단계 | 명령 | 실패 시 상태 |
+|------|------|-------------|
+| **1회차** | `archive_collect` (chunk별) | `failed` → run summary 보고 |
+| **2회차** | `archive_collect --retry-failed` | 동일 fetch 1회 → 또 실패 시 **`skipped` (최종)** |
 
 ```powershell
-python -m scripts.archive_collect --worker pc --chunk 3 --max-tasks 0
-python -m scripts.archive_collect --retry-failed   # failed만 명시적 재시도
-python -m scripts.repair_overfetched --year 2025 --min-pages 35 --apply
-python -m scripts.reset_stale_cursors
+python -m scripts.archive_collect --worker pc --chunk 0 --max-tasks 0
+python -m scripts.archive_collect --retry-failed --max-tasks 0   # failed → skipped
+python -m scripts.reset_stale_cursors   # next_page>=800 커서 복구 (재시도 전 권장)
+python -m scripts.repair_overfetched --year 2024 --min-pages 35 --apply
 ```
 
 fetch 가드: date dedup, stale page stop, **30 page/task 상한** (`ARCHIVE_MAX_PAGES_PER_YEAR_TASK`)
 
 ---
 
-## 완료 (2026-06-15 기준)
+## 완료 (2026-06-16 기준)
 
 ### 2026 OHLCV
 - [x] 2026-01-01 ~ 2026-05-31: **3,945 done**, 2 skipped (6월 신규상장)
 - [x] 수정주가 교차검증 10/10 PASS
 
-### 2025 OHLCV (진행 중)
-- [x] chunk 0·1·2 대부분 완료
-- [x] 과다 page(789) 97종 repair + fetch 로직 수정 후 **85종 재수집**
-- [ ] **chunk 3 pending ~328종** ← **내일 우선**
-- [ ] failed 14종 (Naver 데이터 없음 → skip 검토)
+### 2025 OHLCV — **완료**
+- [x] chunk 0·1·2·3 전체 pending 수집 완료
+- [x] 과다 page(789) repair + fetch 로직 수정 (dedup / stale stop / 30p cap)
+- [x] failed 49종 `--retry-failed` → **skipped 49** (복구 0, 2026 상반기 상장·채권/ETF)
 
-**2025 전체: done 3,593 / 3,947 (91%)**
+**2025 최종: done 3,898 + skipped 49 = 3,947 (100%)**
+
+skipped 49종 (2026 신규상장·데이터 없음):  
+`520102`, `580088` 등 — manifest `tasks.jsonl` status=skipped 참고
 
 ---
 
-## 보류 / 다음에
+## 다음 우선: **2024 OHLCV**
 
-- [ ] chunk 3 수집 완료
+```powershell
+cd c:\cursor\00_archive
+python -m scripts.archive_plan --years 2024 --append
+python -m scripts.archive_collect --worker pc --chunk 0 --max-tasks 150   # chunk/day 권장
+# chunk 0→3 순, 1회차 끝나면 failed 보고 → --retry-failed
+```
+
+- page cursor: 2025·2026 수집 후 `manifest/cursors/`에 next_page 저장됨 → 2024는 **cursor부터** fetch
+- chunk당 ~1000종, `--max-tasks 150` 또는 chunk/day 운영
+
+---
+
+## 보류 / 이후
+
+- [ ] 2024 수집 (역순, cursor 활용)
+- [ ] 2023 이하 연도
 - [ ] 시총 pykrx enrich (Phase 1.5)
 - [ ] 상장폐지: 연도별 리스트·건수 먼저 (⏰)
-- [ ] 2024 이하 연도 (역순, cursor 활용)
 
 ---
 
-## Git (2026-06-15)
+## Git
 
 - 원격: [leerion9/00_archive](https://github.com/leerion9/00_archive)
 - 브랜치: `master` (`origin/master` 추적)
-- 최신 커밋: `ca3b10c`
-- 수집 데이터(`raw/`, `manifest/`)는 `.gitignore` — PC 로컬 유지
+- 수집 데이터(`raw/`, `manifest/`)는 `.gitignore` — **PC 로컬 유지**
 
 ---
 

@@ -44,9 +44,11 @@ def _configure_logging(worker_id: str, chunk_id: int | None) -> None:
 
 def _print_run_summary(tasks: list[dict], stats: dict) -> None:
     failed = [t for t in tasks if t.get("status") == "failed" and t.get("_run_failed")]
+    skipped = [t for t in tasks if t.get("status") == "skipped" and t.get("_run_skipped")]
     print("\n=== run summary ===")
     print(
         f"picked={stats['picked']} done={stats['done']} failed={stats.get('failed', 0)} "
+        f"skipped={stats.get('skipped', 0)} "
         f"requests={stats.get('requests', 0)} elapsed={stats.get('elapsed_sec', 0)}s "
         f"cursor_skip_pages={stats.get('skipped_pages', 0)}"
     )
@@ -59,6 +61,12 @@ def _print_run_summary(tasks: list[dict], stats: dict) -> None:
         if len(failed) > 20:
             print(f"  ... and {len(failed) - 20} more")
         print("retry later: python -m scripts.archive_collect --retry-failed")
+    if skipped:
+        print(f"skipped this run ({len(skipped)}) - final after retry:")
+        for t in skipped[:20]:
+            print(f"  {t['task_id']}: {t.get('error', '')}")
+        if len(skipped) > 20:
+            print(f"  ... and {len(skipped) - 20} more")
 
 
 def run_collect(
@@ -99,7 +107,7 @@ def run_collect(
         batch_pause_sec=settings.batch_pause_sec,
     )
 
-    stats = {"picked": len(batch), "done": 0, "failed": 0, "skipped_pages": 0, "aborted_ok": 0}
+    stats = {"picked": len(batch), "done": 0, "failed": 0, "skipped": 0, "skipped_pages": 0, "aborted_ok": 0}
     t0 = time.monotonic()
 
     for task in batch:
@@ -175,23 +183,42 @@ def run_collect(
                 start_page,
             )
         except Exception as exc:
-            stats["failed"] += 1
             err = str(exc)
-            update_task_status(tasks, tid, "failed", error=err)
-            for t in tasks:
-                if str(t.get("task_id")) == tid:
-                    t["_run_failed"] = True
-            append_progress(
-                progress_path,
-                {
-                    "at_iso": utc_now_iso(),
-                    "worker_id": worker_id,
-                    "task_id": tid,
-                    "status": "failed",
-                    "error": err,
-                },
-            )
-            _log.error("collect failed %s: %s", tid, exc)
+            if retry_failed:
+                stats["skipped"] += 1
+                update_task_status(tasks, tid, "skipped", error=err)
+                for t in tasks:
+                    if str(t.get("task_id")) == tid:
+                        t["_run_skipped"] = True
+                append_progress(
+                    progress_path,
+                    {
+                        "at_iso": utc_now_iso(),
+                        "worker_id": worker_id,
+                        "task_id": tid,
+                        "status": "skipped",
+                        "error": err,
+                        "final_after_retry": True,
+                    },
+                )
+                _log.warning("collect skipped %s (retry failed): %s", tid, exc)
+            else:
+                stats["failed"] += 1
+                update_task_status(tasks, tid, "failed", error=err)
+                for t in tasks:
+                    if str(t.get("task_id")) == tid:
+                        t["_run_failed"] = True
+                append_progress(
+                    progress_path,
+                    {
+                        "at_iso": utc_now_iso(),
+                        "worker_id": worker_id,
+                        "task_id": tid,
+                        "status": "failed",
+                        "error": err,
+                    },
+                )
+                _log.error("collect failed %s: %s", tid, exc)
 
         save_tasks_jsonl(tasks_path, tasks)
 
@@ -214,7 +241,7 @@ def main() -> None:
     parser.add_argument(
         "--retry-failed",
         action="store_true",
-        help="Only retry tasks with status=failed (explicit re-run)",
+        help="Retry failed tasks with same fetch logic; still failing → skipped (final)",
     )
     parser.add_argument(
         "--symbols",
