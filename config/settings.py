@@ -28,6 +28,8 @@ class Settings:
     num_chunks: int
     chunk_id: int | None
     max_pages_per_year_task: int
+    krx_id: str
+    krx_pw: str
 
 
 def _env_int(name: str, default: int) -> int:
@@ -65,6 +67,8 @@ def load_settings() -> Settings:
         num_chunks=_env_int("ARCHIVE_NUM_CHUNKS", 4),
         chunk_id=_env_optional_int("ARCHIVE_CHUNK_ID"),
         max_pages_per_year_task=_env_int("ARCHIVE_MAX_PAGES_PER_YEAR_TASK", 30),
+        krx_id=os.getenv("KRX_ID", "").strip(),
+        krx_pw=os.getenv("KRX_PW", "").strip(),
     )
 
 

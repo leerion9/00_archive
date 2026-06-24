@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "purpose": "enrich_market_cap",
+  "num_chunks": 9,
+  "test_chunk_count": 50,
+  "total_symbols": 3947,
+  "chunks": [
+    {
+      "chunk_id": 0,
+      "role": "test",
+      "from_symbol": "000020",
+      "to_symbol": "000815",
+      "count": 50
+    },
+    {
+      "chunk_id": 1,
+      "role": "prod",
+      "from_symbol": "000850",
+      "to_symbol": "014950",
+      "count": 488
+    },
+    {
+      "chunk_id": 2,
+      "role": "prod",
+      "from_symbol": "014970",
+      "to_symbol": "053050",
+      "count": 487
+    },
+    {
+      "chunk_id": 3,
+      "role": "prod",
+      "from_symbol": "053060",
+      "to_symbol": "101670",
+      "count": 487
+    },
+    {
+      "chunk_id": 4,
+      "role": "prod",
+      "from_symbol": "101680",
+      "to_symbol": "214320",
+      "count": 487
+    },
+    {
+      "chunk_id": 5,
+      "role": "prod",
+      "from_symbol": "214330",
+      "to_symbol": "305720",
+      "count": 487
+    },
+    {
+      "chunk_id": 6,
+      "role": "prod",
+      "from_symbol": "306040",
+      "to_symbol": "425040",
+      "count": 487
+    },
+    {
+      "chunk_id": 7,
+      "role": "prod",
+      "from_symbol": "425420",
+      "to_symbol": "488720",
+      "count": 487
+    },
+    {
+      "chunk_id": 8,
+      "role": "prod",
+      "from_symbol": "488770",
+      "to_symbol": "950250",
+      "count": 487
+    }
+  ]
+}

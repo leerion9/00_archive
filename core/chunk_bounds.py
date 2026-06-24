@@ -60,6 +60,78 @@ def load_chunk_config(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
+def split_symbols_enrich(
+    sorted_symbols: List[str],
+    *,
+    test_count: int = 50,
+    prod_chunks: int = 8,
+) -> List[Dict[str, Any]]:
+    """Step C enrich: chunk 0 = test_count symbols, remainder split into prod_chunks."""
+    syms = [str(s).strip() for s in sorted_symbols if str(s).strip()]
+    n = len(syms)
+    tc = max(0, min(int(test_count), n))
+    test_block = syms[:tc]
+    rest = syms[tc:]
+    chunks: List[Dict[str, Any]] = []
+
+    if test_block:
+        chunks.append(
+            {
+                "chunk_id": 0,
+                "role": "test",
+                "from_symbol": test_block[0],
+                "to_symbol": test_block[-1],
+                "count": len(test_block),
+            }
+        )
+
+    nc = max(1, int(prod_chunks))
+    if rest:
+        q, r = divmod(len(rest), nc)
+        cuts = [0]
+        for i in range(nc):
+            cuts.append(cuts[-1] + q + (1 if i < r else 0))
+        for i in range(nc):
+            block = rest[cuts[i] : cuts[i + 1]]
+            if not block:
+                continue
+            chunks.append(
+                {
+                    "chunk_id": i + 1,
+                    "role": "prod",
+                    "from_symbol": block[0],
+                    "to_symbol": block[-1],
+                    "count": len(block),
+                }
+            )
+    return chunks
+
+
+def write_enrich_chunk_config(
+    path: Path,
+    sorted_symbols: List[str],
+    *,
+    test_count: int = 50,
+    prod_chunks: int = 8,
+) -> List[Dict[str, Any]]:
+    chunks = split_symbols_enrich(sorted_symbols, test_count=test_count, prod_chunks=prod_chunks)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "purpose": "enrich_market_cap",
+        "num_chunks": len(chunks),
+        "test_chunk_count": test_count,
+        "total_symbols": len(sorted_symbols),
+        "chunks": chunks,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return chunks
+
+
+def enrich_chunk_config_path(base_dir: Path) -> Path:
+    return base_dir / "config" / "chunks_enrich.json"
+
+
 def assign_chunk(symbol: str, chunk_id: int, bounds_path: Path) -> bool:
     """True if symbol falls in chunk_id range (inclusive, sorted 6-digit codes)."""
     sym = str(symbol).strip()
