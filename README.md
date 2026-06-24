@@ -11,7 +11,8 @@
 | 경로 | 내용 |
 |------|------|
 | [docs/DESIGN.md](docs/DESIGN.md) | 전체 설계 (스키마, shard, merge, 이벤트, 운영) |
-| [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) | 향후 작업 · 리마인더 (폐지 종목, chunk 수집) |
+| [docs/COLLECTION_PLAN.md](docs/COLLECTION_PLAN.md) | **수집·보강 계획** (Step A~F, sidecar) |
+| [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) | 향후 작업 · 리마인더 (폐지 종목 ⏰) |
 | [reference/moa/](reference/moa/) | moa 원본 파일 사본 (참고용) |
 
 ## 빠른 시작
@@ -30,11 +31,11 @@ pytest
 
 ## 개발 순서 (DESIGN.md 기준)
 
-1. **Phase 0** — `archive_plan`, 10종 수정주가 교차검증
-2. **Phase 1** — `archive_collect` (pc / laptop)
-3. **Phase 1b** — `archive_merge`, `archive_status`
-4. **Phase 2** — listing_events, backtest event check
-5. **Phase 3** — 시총 등 2차 필드 (필요 시)
+1. **Phase 0** — `archive_plan`, 10종 수정주가 교차검증 ✅
+2. **Phase 1** — `archive_collect` OHLCV (2020~2026 ✅, 2019~ 역순 예정)
+3. **Phase 1b~1.5** — merge → sidecar enrich (거래대금·MA5·시총) — [COLLECTION_PLAN.md](docs/COLLECTION_PLAN.md)
+4. **Phase 2** — listing_events, 상장폐지 OHLCV (⏰ enrich 후)
+5. **Phase 3** — 백테스트 연동·추가 필드
 
 ## 디렉터리
 
