@@ -8,17 +8,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
-import requests
 
 from core.archive_merge import load_collection_plan_years, load_symbols_active, merged_path
 from core.archive_schema import utc_now_iso
 from core.chunk_bounds import assign_chunk, enrich_chunk_config_path, write_enrich_chunk_config
 from core.enrich_derived import append_enrich_task, features_path, read_features_parquet, write_features_parquet
-from core.market_cap_fetch import fetch_market_cap_for_year
+from core.market_cap_fetch import fetch_market_cap_for_year, load_etf_etn_symbol_set
 from core.shard import task_id
 from core.throttle import RequestThrottler
 
 MCAP_STEP = "market_cap"
+MCAP_FAILURES_PATH = "manifest/enrich_mcap_failures.jsonl"
 
 
 def build_mcap_tasks(
@@ -85,6 +85,25 @@ def _merge_mcap_into_features(existing: pd.DataFrame, mcap_df: pd.DataFrame, met
         base.loc[mask, "market_cap_method"] = method
 
     return base.sort_values("date").reset_index(drop=True)
+
+
+def _clear_mcap_for_year(features: pd.DataFrame, year: int) -> pd.DataFrame:
+    base = features.copy()
+    if "date" not in base.columns:
+        return base
+    prefix = str(int(year))
+    mask = base["date"].astype(str).str.startswith(prefix)
+    for col in ("market_cap", "shares_outstanding", "market_cap_method"):
+        if col in base.columns:
+            base.loc[mask, col] = pd.NA if col != "market_cap_method" else None
+    return base
+
+
+def append_mcap_failure(base_dir: Path, entry: Dict[str, Any]) -> None:
+    path = base_dir / MCAP_FAILURES_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 @dataclass
@@ -154,16 +173,8 @@ def run_mcap_enrich(
         tasks_total=len(tasks),
     )
 
-    session = requests.Session()
-    session.headers.update(
-        {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-            )
-        }
-    )
-    naver_shares_cache: dict[str, int] = {}
+    max_year = max(int(t["year"]) for t in tasks)
+    etf_symbols = load_etf_etn_symbol_set(f"{max_year}1231")
     feature_cache: dict[str, pd.DataFrame] = {}
 
     for task in tasks:
@@ -203,8 +214,7 @@ def run_mcap_enrich(
                 name=name,
                 krx_id=krx_id,
                 krx_pw=krx_pw,
-                naver_shares_cache=naver_shares_cache,
-                session=session,
+                etf_symbols=etf_symbols,
             )
             if throttler is not None:
                 throttler.after_request()
@@ -216,20 +226,20 @@ def run_mcap_enrich(
                 )
                 report.results.append(result)
                 report.failed += 1
-                append_enrich_task(
-                    base_dir,
-                    {
-                        "at_iso": utc_now_iso(),
-                        "task_id": tid,
-                        "symbol": sym,
-                        "year": year,
-                        "step": MCAP_STEP,
-                        "status": "failed",
-                        "method": method,
-                        "row_count": 0,
-                        "error": err,
-                    },
-                )
+                fail_entry = {
+                    "at_iso": utc_now_iso(),
+                    "task_id": tid,
+                    "symbol": sym,
+                    "name": name,
+                    "year": year,
+                    "step": MCAP_STEP,
+                    "status": "failed",
+                    "method": method,
+                    "row_count": 0,
+                    "error": err,
+                }
+                append_enrich_task(base_dir, fail_entry)
+                append_mcap_failure(base_dir, fail_entry)
                 continue
 
             if sym not in feature_cache:
@@ -238,6 +248,7 @@ def run_mcap_enrich(
                 else:
                     feature_cache[sym] = pd.DataFrame(columns=["date"])
 
+            feature_cache[sym] = _clear_mcap_for_year(feature_cache[sym], year)
             feature_cache[sym] = _merge_mcap_into_features(feature_cache[sym], mcap_df, method)
             write_features_parquet(feat_file, feature_cache[sym])
 
@@ -272,19 +283,19 @@ def run_mcap_enrich(
             )
             report.results.append(result)
             report.failed += 1
-            append_enrich_task(
-                base_dir,
-                {
-                    "at_iso": utc_now_iso(),
-                    "task_id": tid,
-                    "symbol": sym,
-                    "year": year,
-                    "step": MCAP_STEP,
-                    "status": "failed",
-                    "row_count": 0,
-                    "error": str(exc),
-                },
-            )
+            fail_entry = {
+                "at_iso": utc_now_iso(),
+                "task_id": tid,
+                "symbol": sym,
+                "name": name,
+                "year": year,
+                "step": MCAP_STEP,
+                "status": "failed",
+                "row_count": 0,
+                "error": str(exc),
+            }
+            append_enrich_task(base_dir, fail_entry)
+            append_mcap_failure(base_dir, fail_entry)
 
     return report
 

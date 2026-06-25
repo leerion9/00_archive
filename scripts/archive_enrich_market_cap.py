@@ -60,10 +60,16 @@ def main() -> None:
     parser.add_argument("--chunk", type=int, required=True, help="Enrich chunk id (0=test, 1-8=prod)")
     parser.add_argument("--years", type=int, nargs="+", help="Years (default: collection_plan.json)")
     parser.add_argument("--symbols", nargs="+", help="Optional symbol override")
+    parser.add_argument("--clear-failures", action="store_true", help="Truncate enrich_mcap_failures.jsonl before run")
     args = parser.parse_args()
 
     _configure_logging(args.chunk)
     base = settings.base_dir
+    if args.clear_failures:
+        fail_path = base / "manifest" / "enrich_mcap_failures.jsonl"
+        if fail_path.exists():
+            fail_path.write_text("", encoding="utf-8")
+            _log.info("cleared %s", fail_path)
     chunks = ensure_enrich_chunk_config(base)
     chunk_rows = [c for c in chunks if int(c["chunk_id"]) == int(args.chunk)]
     if not chunk_rows:
@@ -84,7 +90,7 @@ def main() -> None:
     if settings.krx_id and settings.krx_pw:
         _log.info("KRX credentials configured")
     else:
-        _log.warning("KRX_ID/KRX_PW not set - pykrx mcap may fail; Naver shares_x_close fallback will be used")
+        _log.warning("KRX_ID/KRX_PW not set - pykrx calls may fail; failures logged to enrich_mcap_failures.jsonl")
 
     _log.info(
         "archive_enrich_market_cap chunk=%s role=%s symbols~=%s tasks=%s years=%s",

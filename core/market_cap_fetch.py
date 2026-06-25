@@ -1,25 +1,36 @@
-"""Fetch market cap / NAV via pykrx with Naver snapshot fallback."""
+"""Fetch market cap via pykrx (stocks) or NAV x listed units AUM (ETF/ETN)."""
 
 from __future__ import annotations
 
 import logging
 import os
-import re
-from typing import Optional
+from typing import Optional, Set
 
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
 
 _log = logging.getLogger("archive")
 
-_UA = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    )
-}
-_ITEM_COINO_URL = "https://finance.naver.com/item/coinfo.naver"
+_NAME_ETF_HINTS = (
+    "KODEX",
+    "TIGER",
+    "KOACT",
+    "KIWOOM",
+    "RISE",
+    "TREX",
+    "HANARO",
+    "KBSTAR",
+    "KINDEX",
+    "ARIRANG",
+    " ACE ",
+    " SOL ",
+    "FOCUS",
+    "TIME ",
+    "WON ",
+    "VITA",
+    "1Q ",
+    "마이티",
+    "파워 ",
+)
 
 
 def ensure_krx_env(krx_id: str, krx_pw: str) -> None:
@@ -28,10 +39,57 @@ def ensure_krx_env(krx_id: str, krx_pw: str) -> None:
         os.environ.setdefault("KRX_PW", krx_pw)
 
 
-def is_etf_like(name: str) -> bool:
+def load_etf_etn_symbol_set(as_of: str) -> Set[str]:
+    """pykrx ETF/ETN ticker lists (best-effort; empty if KRX auth missing)."""
+    from pykrx import stock
+
+    out: Set[str] = set()
+    ymd = str(as_of).strip()[:8]
+    for loader_name in ("get_etf_ticker_list", "get_etn_ticker_list"):
+        loader = getattr(stock, loader_name, None)
+        if loader is None:
+            continue
+        try:
+            tickers = loader(ymd)
+            if tickers is not None:
+                out.update(str(t).strip().zfill(6) for t in tickers)
+        except Exception as exc:
+            _log.debug("%s failed: %s", loader_name, exc)
+    return out
+
+
+def is_etf_or_etn(symbol: str, name: str = "", *, known: Optional[Set[str]] = None) -> bool:
+    sym = str(symbol).strip().zfill(6)
+    if known and sym in known:
+        return True
     text = str(name or "").upper()
-    keys = ("ETF", "ETN", "KODEX", "TIGER", "KOACT", "PLUS ", "ACE ", "ARIRANG", "SOL ")
-    return any(k.strip() in text for k in keys if k.strip())
+    if "ETF" in text or "ETN" in text:
+        return True
+    return any(h.upper() in text for h in _NAME_ETF_HINTS)
+
+
+def is_etf_like(name: str) -> bool:
+    """Backward-compatible name check (prefer is_etf_or_etn with pykrx set)."""
+    return is_etf_or_etn("", name)
+
+
+def _parse_krx_number(value) -> float:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return float("nan")
+    text = str(value).strip().replace(",", "")
+    if not text or text == "-":
+        return float("nan")
+    return float(pd.to_numeric(text, errors="coerce"))
+
+
+def _find_column(columns, *patterns: str) -> Optional[str]:
+    for col in columns:
+        text = str(col).lower()
+        for pat in patterns:
+            p = pat.lower()
+            if p in text or pat in str(col):
+                return col
+    return None
 
 
 def fetch_pykrx_market_cap(symbol: str, fromdate: str, todate: str) -> pd.DataFrame:
@@ -46,8 +104,8 @@ def fetch_pykrx_market_cap(symbol: str, fromdate: str, todate: str) -> pd.DataFr
     out = out.rename(columns={date_col: "date"})
     out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y%m%d")
 
-    cap_col = next((c for c in out.columns if "cap" in str(c).lower() or "시가" in str(c)), None)
-    shares_col = next((c for c in out.columns if "shrs" in str(c).lower() or "주식" in str(c)), None)
+    cap_col = _find_column(out.columns, "cap", "시가")
+    shares_col = _find_column(out.columns, "shrs", "주식", "좌")
     if cap_col is None:
         return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
 
@@ -63,88 +121,70 @@ def fetch_pykrx_market_cap(symbol: str, fromdate: str, todate: str) -> pd.DataFr
     return result.dropna(subset=["market_cap"]).reset_index(drop=True)
 
 
-def fetch_pykrx_etf_nav(symbol: str, fromdate: str, todate: str) -> pd.DataFrame:
-    from pykrx import stock
+def fetch_pykrx_etf_aum_krx(symbol: str, fromdate: str, todate: str) -> pd.DataFrame:
+    """
+    ETF/ETN AUM from KRX 개별종목시세_ETF: daily NAV(LST_NAV) x LIST_SHRS.
 
-    df = stock.get_etf_ohlcv_by_date(fromdate, todate, str(symbol).strip())
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["date", "market_cap"])
+    Falls back to INVSTASST_NETASST_TOTAMT when product is zero but official AUM exists.
+    """
+    from pykrx.website.krx.etx.core import 개별종목시세_ETF
+    from pykrx.website.krx.etx.ticker import get_etx_isin
 
-    out = df.reset_index()
-    date_col = out.columns[0]
-    out = out.rename(columns={date_col: "date"})
-    out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y%m%d")
-
-    nav_col = None
-    for col in out.columns:
-        low = str(col).lower()
-        if "nav" in low or "순자산" in str(col):
-            nav_col = col
-            break
-    if nav_col is None and len(out.columns) > 5:
-        nav_col = out.columns[5]
-
-    if nav_col is None:
-        return pd.DataFrame(columns=["date", "market_cap"])
-
-    result = pd.DataFrame(
-        {
-            "date": out["date"].astype(str),
-            "market_cap": pd.to_numeric(out[nav_col], errors="coerce"),
-        }
-    )
-    return result.dropna(subset=["market_cap"]).reset_index(drop=True)
-
-
-def fetch_naver_listed_shares(symbol: str, session: Optional[requests.Session] = None) -> Optional[int]:
-    """Parse 상장주식수 from Naver item coinfo (snapshot)."""
-    own_session = session is None
-    if own_session:
-        sess = requests.Session()
-        sess.headers.update(_UA)
-    else:
-        sess = session  # type: ignore[assignment]
     try:
-        resp = sess.get(_ITEM_COINO_URL, params={"code": str(symbol).strip()}, timeout=20)
-        resp.encoding = "euc-kr"
-        resp.raise_for_status()
-        m = re.search(r"상장주식수[\s\S]{0,120}?<em>\s*([\d,]+)\s*</em>", resp.text)
-        if m:
-            return int(m.group(1).replace(",", ""))
-        soup = BeautifulSoup(resp.text, "html.parser")
-        for th in soup.select("th"):
-            if "상장주식수" not in th.get_text(strip=True):
-                continue
-            td = th.find_next("td")
-            if not td:
-                continue
-            em = td.select_one("em")
-            text = (em or td).get_text(strip=True)
-            m2 = re.search(r"([\d,]+)", text)
-            if m2:
-                return int(m2.group(1).replace(",", ""))
+        isin = get_etx_isin(str(symbol).strip())
     except Exception as exc:
-        _log.warning("naver shares fetch failed %s: %s", symbol, exc)
-    return None
+        _log.debug("get_etx_isin failed %s: %s", symbol, exc)
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
 
+    raw = 개별종목시세_ETF().fetch(fromdate, todate, isin)
+    if raw is None or raw.empty:
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
 
-def build_shares_x_close_frame(bars: list[dict], shares: int) -> pd.DataFrame:
-    rows = []
-    for bar in bars:
-        date_key = str(bar.get("date", "")).strip()
-        if not date_key:
+    rows: list[dict] = []
+    for _, row in raw.iterrows():
+        date_key = pd.to_datetime(str(row.get("TRD_DD", "")).replace("/", "-"), errors="coerce")
+        if pd.isna(date_key):
             continue
-        close = int(bar.get("close", 0) or 0)
+        nav = _parse_krx_number(row.get("LST_NAV"))
+        shares = _parse_krx_number(row.get("LIST_SHRS"))
+        official_aum = _parse_krx_number(row.get("INVSTASST_NETASST_TOTAMT"))
+
+        market_cap = float("nan")
+        if pd.notna(nav) and pd.notna(shares) and nav > 0 and shares > 0:
+            market_cap = nav * shares
+        elif pd.notna(official_aum) and official_aum > 0:
+            market_cap = official_aum
+
+        if pd.isna(market_cap) or market_cap <= 0:
+            continue
+
         rows.append(
             {
-                "date": date_key,
-                "market_cap": close * int(shares),
-                "shares_outstanding": int(shares),
+                "date": date_key.strftime("%Y%m%d"),
+                "market_cap": market_cap,
+                "shares_outstanding": shares if pd.notna(shares) and shares > 0 else pd.NA,
             }
         )
+
     if not rows:
         return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).reset_index(drop=True)
+
+
+def build_etf_aum_frame(nav_df: pd.DataFrame, shares_df: pd.DataFrame) -> pd.DataFrame:
+    if nav_df.empty or shares_df.empty:
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
+
+    nav = nav_df.copy()
+    nav["date"] = nav["date"].astype(str)
+    shares = shares_df.copy()
+    shares["date"] = shares["date"].astype(str)
+    merged = nav.merge(shares, on="date", how="inner")
+    if merged.empty:
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
+
+    merged["market_cap"] = merged["nav"] * merged["shares_outstanding"]
+    return merged[["date", "market_cap", "shares_outstanding"]].reset_index(drop=True)
 
 
 def fetch_market_cap_for_year(
@@ -155,8 +195,7 @@ def fetch_market_cap_for_year(
     name: str = "",
     krx_id: str = "",
     krx_pw: str = "",
-    naver_shares_cache: dict[str, int],
-    session: Optional[requests.Session] = None,
+    etf_symbols: Optional[Set[str]] = None,
 ) -> tuple[pd.DataFrame, str]:
     """Return (dataframe[date, market_cap, shares_outstanding], method)."""
     year_bars = [b for b in bars if str(b.get("date", "")).startswith(str(int(year)))]
@@ -169,24 +208,14 @@ def fetch_market_cap_for_year(
 
     ensure_krx_env(krx_id, krx_pw)
 
-    if is_etf_like(name):
-        etf_df = fetch_pykrx_etf_nav(sym, fromdate, todate)
-        if not etf_df.empty:
-            etf_df["shares_outstanding"] = pd.NA
-            return etf_df, "etf_nav"
+    if is_etf_or_etn(sym, name, known=etf_symbols):
+        aum_df = fetch_pykrx_etf_aum_krx(sym, fromdate, todate)
+        if not aum_df.empty:
+            return aum_df, "etf_aum"
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"]), "failed"
 
     cap_df = fetch_pykrx_market_cap(sym, fromdate, todate)
     if not cap_df.empty:
         return cap_df, "pykrx_mcap"
-
-    if sym not in naver_shares_cache:
-        shares = fetch_naver_listed_shares(sym, session=session)
-        if shares:
-            naver_shares_cache[sym] = shares
-
-    shares = naver_shares_cache.get(sym)
-    if shares:
-        fb = build_shares_x_close_frame(year_bars, shares)
-        return fb, "shares_x_close"
 
     return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"]), "failed"

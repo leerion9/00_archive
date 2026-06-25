@@ -13,7 +13,7 @@
 | 2 | **시가총액** | **일별** pykrx 수집 후 저장 |
 | 3 | **저장 구조** | OHLCV `bars`는 유지, 보강·파생 필드는 **sidecar** |
 | 4 | **상장폐지** | 2차 필드·merge 완료 **후** Phase 2 (⏰ 리마인드) |
-| 5 | **ETF 규모** | 1순위 ETF **NAV**(pykrx `get_etf_ohlcv_by_date`), 실패 시 `상장주식수×종가` → `market_cap` 컬럼에 통합 |
+| 5 | **ETF·ETN 규모** | **AUM = NAV × 일별 상장좌수** → `market_cap` (`etf_aum`); Naver 근사 fallback 없음 |
 | 6 | **파생 저장** | **거래대금 5일 평균**(`value_ma5`), **종가 5일선**(`close_ma5`) 계산 후 sidecar 저장 |
 
 ---
@@ -48,21 +48,20 @@ features/{symbol}.parquet            # date index sidecar (신규)
 | `trading_value` | close × volume | Step B |
 | `value_ma5` | trading_value 5일 rolling | Step B |
 | `close_ma5` | close 5일 rolling | Step B |
-| `market_cap` | pykrx 일별 시총 / ETF NAV / fallback | Step C |
-| `market_cap_method` | `pykrx_mcap` \| `etf_nav` \| `shares_x_close` | Step C |
-| `shares_outstanding` | pykrx (선택) | fallback·검증용 |
+| `market_cap` | pykrx 일별 시총 / ETF·ETN AUM(NAV×상장좌수) | Step C |
+| `market_cap_method` | `pykrx_mcap` \| `etf_aum` | Step C |
+| `shares_outstanding` | pykrx 일별 | ETF AUM·검증용 |
 
 ---
 
 ## 단계별 실행 순서
 
-### Step A — `archive_merge` (Phase 1b)
+### Step A — `archive_merge` (Phase 1b) ✅
 
 **목적**: raw 연도 chunk → 종목별 통합 bars
 
-- [ ] `merged/{symbol}.json` 생성 (2020~2026)
-- [ ] merge 리포트 (`reports/merge_report_*.json`)
-- [ ] `archive_status`로 bar_count·date_range 확인
+- [x] `merged/{symbol}.json` 생성 (2020~2026, 3,945종)
+- [x] merge 리포트 (`reports/merge_report_20260624.json`)
 
 ```powershell
 cd c:\cursor\00_archive
@@ -74,13 +73,13 @@ cd c:\cursor\00_archive
 
 ---
 
-### Step B — `archive_enrich_derived` (API 없음)
+### Step B — `archive_enrich_derived` (API 없음) ✅
 
 **목적**: bars만으로 계산 가능한 sidecar 필드
 
-- [ ] `trading_value` = close × volume
-- [ ] `value_ma5`, `close_ma5`
-- [ ] manifest: `manifest/enrich_tasks.jsonl` (symbol 단위, 멱등)
+- [x] `trading_value` = close × volume
+- [x] `value_ma5`, `close_ma5`
+- [x] manifest: `manifest/enrich_tasks.jsonl` (derived 3,945종)
 
 ```powershell
 # python -m scripts.archive_enrich_derived --years 2020 2021 2022 2023 2024 2025 2026
@@ -91,22 +90,23 @@ cd c:\cursor\00_archive
 
 ---
 
-### Step C — `archive_enrich_market_cap` (pykrx)
+### Step C — `archive_enrich_market_cap` (pykrx) 🔄
 
 **목적**: 일별 규모(`market_cap`) sidecar 보강
 
-| 종류 | 1순위 API | fallback |
-|------|-----------|----------|
-| 주식 | `stock.get_market_cap_by_date(from, to, ticker)` | `shares_outstanding × close` |
-| ETF | `stock.get_etf_ohlcv_by_date` → **NAV** | `get_market_cap_by_date` 또는 CU×종가 |
+| 종류 | API | method |
+|------|-----|--------|
+| 주식 | `get_market_cap_by_date` | `pykrx_mcap` |
+| ETF·ETN | KRX `개별종목시세_ETF`: **NAV × LIST_SHRS** | `etf_aum` |
 
-- [ ] symbol×year batch, throttle (archive_collect와 유사)
-- [ ] 실패 재시도 → 최종 skip 기록
-- [ ] `market_cap_method` 메타 저장
+- **Naver 현재주식수×종가 fallback 없음** — 실패 시 `manifest/enrich_mcap_failures.jsonl`
+- [x] 구현·chunk enrich 0~5 1차 실행 (2026-06-24, 구 `etf_nav` 방식)
+- [x] **2026-06-25** 정책 반영 코드 (`etf_aum`, fallback 제거)
+- [ ] **chunk 1~8 재적재** (chunk 0 test 재완료, chunk 1~5·6~8 남음) → [NEXT_STEPS.md](./NEXT_STEPS.md)
 
 ```powershell
-# python -m scripts.archive_enrich_market_cap --chunk 0 --max-tasks 0
-# chunk 0→3 순차 (OHLCV collect와 동일 패턴)
+python -m scripts.archive_enrich_market_cap --chunk N
+# enrich chunk 0=test, 1~8=prod (chunks_enrich.json)
 ```
 
 **선행**: Step B (bars·date join 검증)  
