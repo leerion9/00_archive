@@ -1,0 +1,48 @@
+당신은 **00_archive** (Naver 일봉 OHLCV 장기 아카이브) 프로젝트를 작업하고 있습니다.
+
+## 혼동 금지
+- 이 프로젝트는 **`03_moa` 자동매매와 별개**입니다. KIS 주문·52주 돌파 전략·`history_cache` 운영 로직을 적용하지 마세요.
+- `maxv`, `picman` 등 다른 `C:\cursor\` 프로젝트와도 혼동하지 마세요.
+
+## 대화·문서
+- **한국어 존댓말**로만 답변하세요.
+- 합의·handoff·진행 상태는 **`docs/NEXT_STEPS.md`** → **`docs/COLLECTION_PLAN.md`** → **`docs/DESIGN.md`** → **`README.md`** 순으로 우선합니다.
+- 새 채팅 handoff 시 `docs/NEXT_STEPS.md` 날짜·Step·chunk 번호를 갱신하세요.
+
+## 프로젝트 목적
+- KOSPI/KOSDAQ **일봉 OHLCV** 장기 아카이브 (네이버 `sise_day`, 역순 수집 2026→2000).
+- PC·노트북 2 worker 병렬 수집 → merge → sidecar enrich.
+- **전략 중립** — 특정 매매 전략·시총 필터를 전제하지 않음.
+
+## 데이터 경로 (git 제외)
+- `data/naver_daily_archive/raw/`, `merged/`, `features/`, `manifest/` — **커밋하지 않음** (PC 로컬).
+- 코드·설정만 git. 원격: `leerion9/00_archive`, branch `master`.
+
+## 수집·보강 Step (COLLECTION_PLAN 기준)
+| Step | 내용 |
+|------|------|
+| A | `archive_merge` |
+| B | `archive_enrich_derived` (거래대금·MA5) |
+| C | `archive_enrich_market_cap` — 주식 `pykrx_mcap`, ETF·ETN `etf_aum` (NAV×상장좌수), **Naver fallback 없음** |
+| D | 검증·status |
+| E | OHLCV 2019→2000 + 해당 연도 merge/enrich |
+| F | **일별 시장구분** KOSPI/KOSDAQ (point-in-time) |
+| G | **상장폐지** ⏰ — Step F 완료 후, 사용자 확인 후 착수 |
+
+## Step C 시총 정책
+- `.env`: `KRX_ID`, `KRX_PW` (pykrx KRX 로그인).
+- enrich chunk: `data/naver_daily_archive/config/chunks_enrich.json` (9분할, chunk 0=test).
+- **chunk 0~5**: 6/24 구 `etf_nav` → **재적재** / **chunk 6~8**: **최초 적재**. handoff·상태는 `docs/NEXT_STEPS.md` chunk 표.
+- **한 세션 chunk 1~3개만** — 사용자 지정 chunk만 실행. 1~8 일괄 for-loop **금지**.
+- 실패: `manifest/enrich_mcap_failures.jsonl`.
+- `market_cap` 단위: **원(₩)** — 주식 시총과 ETF AUM 동일 스케일.
+
+## 코딩·운영
+- moa **의존 없이** `core/`에 독립 모듈. 참고 원본은 `reference/moa/`.
+- 민감 값은 `.env`에만. 키·계정 하드코딩 금지.
+- 작고 테스트 가능한 함수, 기존 `core/`·`scripts/` 관례 따르기.
+- **git commit / push는 사용자가 명시적으로 요청할 때만.**
+- 장시간 배치(`archive_collect`, `archive_enrich_*`)는 터미널 실행 권장; 채팅은 handoff·검증 위주.
+
+## ⏰ 리마인더
+- **상장폐지(Step G)** 는 2차 필드·시장구분 enrich 완료 **후**. OHLCV 수집 전 연도별 폐지 종목 규모 **사용자에게 보고·확인**.

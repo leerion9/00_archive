@@ -13,7 +13,7 @@ from core.archive_merge import load_collection_plan_years, load_symbols_active, 
 from core.archive_schema import utc_now_iso
 from core.chunk_bounds import assign_chunk, enrich_chunk_config_path, write_enrich_chunk_config
 from core.enrich_derived import append_enrich_task, features_path, read_features_parquet, write_features_parquet
-from core.market_cap_fetch import fetch_market_cap_for_year, load_etf_etn_symbol_set
+from core.market_cap_fetch import fetch_market_cap_for_year, load_etf_etn_symbol_set, refresh_krx_session
 from core.shard import task_id
 from core.throttle import RequestThrottler
 
@@ -177,7 +177,10 @@ def run_mcap_enrich(
     etf_symbols = load_etf_etn_symbol_set(f"{max_year}1231")
     feature_cache: dict[str, pd.DataFrame] = {}
 
-    for task in tasks:
+    for i, task in enumerate(tasks):
+        if i > 0 and i % 500 == 0:
+            refresh_krx_session(krx_id, krx_pw)
+
         tid = str(task["task_id"])
         sym = str(task["symbol"])
         year = int(task["year"])

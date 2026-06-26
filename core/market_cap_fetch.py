@@ -39,6 +39,21 @@ def ensure_krx_env(krx_id: str, krx_pw: str) -> None:
         os.environ.setdefault("KRX_PW", krx_pw)
 
 
+def refresh_krx_session(krx_id: str = "", krx_pw: str = "") -> None:
+    """Ensure pykrx KRX auth session is active (auto re-login if expired)."""
+    lid = krx_id or os.getenv("KRX_ID", "")
+    lpw = krx_pw or os.getenv("KRX_PW", "")
+    if not (lid and lpw):
+        return
+    ensure_krx_env(lid, lpw)
+    try:
+        from pykrx.website.comm.auth import get_auth_session
+
+        get_auth_session()
+    except Exception as exc:
+        _log.debug("krx session refresh failed: %s", exc)
+
+
 def load_etf_etn_symbol_set(as_of: str) -> Set[str]:
     """pykrx ETF/ETN ticker lists (best-effort; empty if KRX auth missing)."""
     from pykrx import stock
@@ -206,7 +221,7 @@ def fetch_market_cap_for_year(
     fromdate, todate = dates[0], dates[-1]
     sym = str(symbol).strip()
 
-    ensure_krx_env(krx_id, krx_pw)
+    refresh_krx_session(krx_id, krx_pw)
 
     if is_etf_or_etn(sym, name, known=etf_symbols):
         aum_df = fetch_pykrx_etf_aum_krx(sym, fromdate, todate)

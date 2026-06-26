@@ -12,9 +12,10 @@
 | 1 | **거래대금** | `종가 × 거래량` 계산 (근사치로 충분) |
 | 2 | **시가총액** | **일별** pykrx 수집 후 저장 |
 | 3 | **저장 구조** | OHLCV `bars`는 유지, 보강·파생 필드는 **sidecar** |
-| 4 | **상장폐지** | 2차 필드·merge 완료 **후** Phase 2 (⏰ 리마인드) |
-| 5 | **ETF·ETN 규모** | **AUM = NAV × 일별 상장좌수** → `market_cap` (`etf_aum`); Naver 근사 fallback 없음 |
+| 4 | **상장폐지** | Step F(시장구분) 완료 **후** Phase 2 (⏰ 리마인드 · Step G) |
+| 5 | **ETF·ETN 규모** | **AUM = NAV × 일별 상장좌수** → `market_cap` (`etf_aum`); Naver 근사 fallback 없음; **단위: 원(₩)** — `pykrx_mcap`과 동일 |
 | 6 | **파생 저장** | **거래대금 5일 평균**(`value_ma5`), **종가 5일선**(`close_ma5`) 계산 후 sidecar 저장 |
+| 7 | **시장구분** | **일별** KOSPI/KOSDAQ point-in-time → sidecar `market` (Step F; **상장폐지 직전**) |
 
 ---
 
@@ -51,6 +52,7 @@ features/{symbol}.parquet            # date index sidecar (신규)
 | `market_cap` | pykrx 일별 시총 / ETF·ETN AUM(NAV×상장좌수) | Step C |
 | `market_cap_method` | `pykrx_mcap` \| `etf_aum` | Step C |
 | `shares_outstanding` | pykrx 일별 | ETF AUM·검증용 |
+| `market` | pykrx `get_market_ticker_list(date, market=…)` 교차 | Step F (`KOSPI` \| `KOSDAQ`) |
 
 ---
 
@@ -99,10 +101,11 @@ cd c:\cursor\00_archive
 | 주식 | `get_market_cap_by_date` | `pykrx_mcap` |
 | ETF·ETN | KRX `개별종목시세_ETF`: **NAV × LIST_SHRS** | `etf_aum` |
 
+- **`market_cap` 단위**: KRX/pykrx **원(₩)**. ETF AUM(`NAV×LIST_SHRS`)도 동일 — 천원·백만원 스케일 아님.
 - **Naver 현재주식수×종가 fallback 없음** — 실패 시 `manifest/enrich_mcap_failures.jsonl`
-- [x] 구현·chunk enrich 0~5 1차 실행 (2026-06-24, 구 `etf_nav` 방식)
-- [x] **2026-06-25** 정책 반영 코드 (`etf_aum`, fallback 제거)
-- [ ] **chunk 1~8 재적재** (chunk 0 test 재완료, chunk 1~5·6~8 남음) → [NEXT_STEPS.md](./NEXT_STEPS.md)
+- [x] 구현·chunk enrich **0~5** 1차 실행 (2026-06-24, 구 `etf_nav` 방식) → **재적재 대상**
+- [x] **2026-06-25** 정책 반영 코드 (`etf_aum`, fallback 제거); chunk **0** 재적재 ✅
+- [ ] chunk **1~5** 재적재 잔여 · chunk **6~8** **최초 적재** (chunk별 1~3개씩) → [NEXT_STEPS.md](./NEXT_STEPS.md) **chunk 상태표**
 
 ```powershell
 python -m scripts.archive_enrich_market_cap --chunk N
@@ -146,9 +149,34 @@ python -m scripts.archive_enrich_market_cap --chunk N
 
 ---
 
-### Step F — Phase 2 상장폐지 ⏰ (보류 · 리마인드)
+### Step F — `archive_enrich_market` (KOSPI/KOSDAQ point-in-time)
 
-**2차 필드·2019~ merge/enrich 완료 후** 착수. 순서 엄수:
+**목적**: 종목별 **일별 시장 구분** sidecar 보강 (코스닥→거래소 이전 등 이력 반영)
+
+| 항목 | 내용 |
+|------|------|
+| 출처 | pykrx `get_market_ticker_list(YYYYMMDD, market="KOSPI")` / `"KOSDAQ"` |
+| 저장 | `features/{symbol}.parquet` 컬럼 `market` (`KOSPI` \| `KOSDAQ`) |
+| 방식 | 거래일마다 KOSPI·KOSDAQ 목록 조회 → 종목 membership으로 point-in-time 판별 |
+| 구현 | `scripts/archive_enrich_market` (예정) |
+
+- [ ] 2020~2026 전체 (Step C 완료·Step D 검증 후)
+- [ ] Step E로 추가된 연도(2019→…) merge/enrich 후 **동일 Step F 재실행**
+
+```powershell
+# python -m scripts.archive_enrich_market --years 2020 2021 2022 2023 2024 2025 2026
+```
+
+**선행**: Step C (및 해당 구간 Step D)  
+**다음**: Step G (상장폐지 ⏰)
+
+> **순서 엄수**: Step F(시장구분) **완료 후** Step G(상장폐지) 착수.
+
+---
+
+### Step G — Phase 2 상장폐지 ⏰ (보류 · 리마인드 · 구 Step F)
+
+**2차 필드·시장구분(Step F)·2019~ merge/enrich 완료 후** 착수. 순서 엄수:
 
 1. FDR `StockListing('KRX-DELISTING')` → 연도별 폐지 종목·건수 **보고**
 2. 사용자 확인
@@ -197,15 +225,16 @@ data/naver_daily_archive/
 ├── features/{symbol}.parquet          # Step B·C
 ├── manifest/tasks.jsonl
 ├── manifest/enrich_tasks.jsonl        # Step B·C (예정)
-└── master/listing_events.json         # Step F (예정)
+├── master/market_daily.json           # Step F (예정, 또는 sidecar만)
+└── master/listing_events.json         # Step G (예정)
 ```
 
 ---
 
 ## 다음 작업 (즉시)
 
-1. **Step A** — `archive_merge` 구현·실행 (2020~2026)
-2. **Step B** — `archive_enrich_derived` 구현
-3. **Step C** — `archive_enrich_market_cap` 구현
-
-(스크립트 미구현 — Step A부터 순차 개발)
+1. **Step C** — chunk **1~5** 재적재 잔여 · chunk **6~8** 최초 적재 (chunk 0 ✅) — [NEXT_STEPS.md](./NEXT_STEPS.md) chunk 상태표
+2. **Step D** — 검증·status
+3. **Step E** — 2019→2000 OHLCV (병렬 가능)
+4. **Step F** — 일별 시장구분 enrich (상장폐지 **직전**)
+5. **Step G** — 상장폐지 ⏰
