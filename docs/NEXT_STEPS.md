@@ -175,14 +175,11 @@ python -m scripts.archive_enrich_market_cap --chunk 6
 
 ---
 
-## Git (미커밋 로컬 변경)
+## Git
 
-- `.cursorrules` (신규)
-- `docs/NEXT_STEPS.md`, `docs/COLLECTION_PLAN.md`
-- `core/market_cap_fetch.py`, `core/enrich_market_cap.py` (KRX 세션, 6/26)
-
+**2026-06-26 커밋·푸시됨** (`e95f8ba`): `.cursorrules`, Step C handoff, KRX 세션 갱신  
 원격: [leerion9/00_archive](https://github.com/leerion9/00_archive), branch `master`  
-`data/` — git 제외
+`data/` — git 제외 (로컬)
 
 ---
 
