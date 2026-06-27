@@ -5,9 +5,9 @@
 
 **전체 수집·보강 로드맵**: [COLLECTION_PLAN.md](./COLLECTION_PLAN.md)
 
-**마지막 handoff**: 2026-06-27 (Step D **B+C 검증 완료** — **다음: Step F 시장구분**)
+**마지막 handoff**: 2026-06-27 (Step F **완료** + `etf외` 패치 — **다음: Step G**)
 
-**필독 문서**: [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) · [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md) · [STEP_C_RUN_LOG.md](./STEP_C_RUN_LOG.md)
+**필독 문서**: [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) · [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) · [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md)
 
 ---
 
@@ -40,8 +40,8 @@
 | **C** | `archive_enrich_market_cap` | ✅ chunk 0~8 |
 | **D** | 검증·status | ✅ **B+C 완료** — [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) |
 | **E** | 2019→2000 OHLCV | ⏸️ **스킵** (2026-06-27) |
-| **F** | 일별 시장구분 KOSPI/KOSDAQ | ❌ **다음 작업** |
-| **G** | 상장폐지 ⏰ + known failure 정책 | 보류 (F 후) |
+| **F** | 일별 시장구분 (`KOSPI`/`KOSDAQ`/`etf외`) | ✅ **3,945종** — [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) |
+| **G** | 상장폐지 ⏰ + known failure(381+980) | ❌ **다음 작업** |
 
 ---
 
@@ -77,11 +77,26 @@ python -m scripts.report_step_c_status
 
 ---
 
-## Step F — 시장구분 (다음)
+## Step F — 시장구분 ✅ (2026-06-27)
 
-- pykrx `get_market_ticker_list(date, market=KOSPI/KOSDAQ)` → sidecar `market`
-- **선행**: Step D ✅ (2020~26)
-- 구현: `scripts/archive_enrich_market` (예정)
+- **3,945종** chunk 0~3 적재 + ETF/ETN **1,247종** → `market=etf외`
+- `market` 값: `KOSPI` / `KOSDAQ` / `etf외` · row null **0.48%**
+- 캐시: `master/market_daily/` 1,591일
+
+상세: [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md)
+
+---
+
+## Step G — 다음 작업 ⏰
+
+**상장폐지** + **known failure(381+980)** 를 **함께** 정책 확정 후 착수.
+
+1. FDR `StockListing('KRX-DELISTING')` → 연도별 폐지 종목·건수 **보고**
+2. 사용자 확인
+3. partial 980 / none 381 시총 미완 · Step F `market` null 0.48% 처리 방침
+4. 폐지 종목 OHLCV·`master/listing_events.json`
+
+→ [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) known failure 절
 
 ---
 
@@ -92,6 +107,6 @@ python -m scripts.report_step_c_status
 
 ---
 
-## 새 채팅 시작 문장 (Step F)
+## 새 채팅 시작 문장 (Step G)
 
-> `docs/NEXT_STEPS.md` · `docs/STEP_D_HANDOFF.md` 읽고 Step **F**(일별 KOSPI/KOSDAQ `market` sidecar enrich) 착수해줘. Step E 스킵. known failure 381+980·상장폐지(Step G)는 F 완료 후 함께 논의.
+> `docs/NEXT_STEPS.md` · `docs/STEP_D_HANDOFF.md` · `docs/STEP_F_HANDOFF.md` 읽고 Step **G**(상장폐지) 착수해줘. known failure(381+980)·Step F market null 0.48% 정책 **함께** 확정 후 진행. Step E 스킵.

@@ -52,7 +52,7 @@ features/{symbol}.parquet            # date index sidecar (신규)
 | `market_cap` | pykrx 일별 시총 / ETF·ETN AUM(NAV×상장좌수) | Step C |
 | `market_cap_method` | `pykrx_mcap` \| `etf_aum` | Step C |
 | `shares_outstanding` | pykrx 일별 | ETF AUM·검증용 |
-| `market` | pykrx `get_market_ticker_list(date, market=…)` 교차 | Step F (`KOSPI` \| `KOSDAQ`) |
+| `market` | pykrx `get_market_ticker_list(date, market=…)` 교차 + ETF/ETN → `etf외` | Step F (`KOSPI` \| `KOSDAQ` \| `etf외`) |
 
 ---
 
@@ -164,13 +164,14 @@ python -m scripts.archive_enrich_validate_samples --all
 | 출처 | pykrx `get_market_ticker_list(YYYYMMDD, market="KOSPI")` / `"KOSDAQ"` |
 | 저장 | `features/{symbol}.parquet` 컬럼 `market` (`KOSPI` \| `KOSDAQ`) |
 | 방식 | 거래일마다 KOSPI·KOSDAQ 목록 조회 → 종목 membership으로 point-in-time 판별 |
-| 구현 | `scripts/archive_enrich_market` (예정) |
+| 구현 | `scripts/archive_enrich_market` ✅ |
 
-- [ ] 2020~2026 전체 (Step C 완료·Step D 검증 후)
+- [x] 구현·스모크 (2026-06-27)
+- [ ] 2020~2026 전체 chunk 0~3 적재
 - [ ] Step E로 추가된 연도(2019→…) merge/enrich 후 **동일 Step F 재실행**
 
 ```powershell
-# python -m scripts.archive_enrich_market --years 2020 2021 2022 2023 2024 2025 2026
+python -m scripts.archive_enrich_market --chunk 0 --years 2020 2021 2022 2023 2024 2025 2026
 ```
 
 **선행**: Step C (및 해당 구간 Step D)  
@@ -239,6 +240,6 @@ data/naver_daily_archive/
 
 ## 다음 작업 (즉시)
 
-1. **Step F** — 일별 시장구분 enrich
+1. **Step F** — chunk 0~3 `archive_enrich_market` (2020~26) — [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md)
 2. **Step G** — 상장폐지 ⏰ + known failure(381+980) 정책 (F 후)
 3. ~~**Step E**~~ — 2019→2000 OHLCV ⏸️ 스킵

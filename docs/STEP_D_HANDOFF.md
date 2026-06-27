@@ -126,12 +126,4 @@ Step C manifest 기준 **3,945종** 분류 (상호 배타):
 
 ## 다음 세션 (Step F)
 
-```powershell
-cd c:\cursor\00_archive
-# 구현 예정: scripts/archive_enrich_market
-# pykrx get_market_ticker_list(date, market=KOSPI|KOSDAQ) → features.market
-```
-
-**새 채팅 시작 문장**:
-
-> `docs/NEXT_STEPS.md` · `docs/STEP_D_HANDOFF.md` 읽고 Step **F**(일별 KOSPI/KOSDAQ 시장구분 enrich) 착수해줘. Step E 스킵·known failure 381+980은 Step G와 함께 나중에.
+→ [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) (구현·스모크 완료, chunk 0~3 적재 대기)

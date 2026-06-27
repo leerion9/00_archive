@@ -1,4 +1,4 @@
-"use Step B derived sidecar fields from merged OHLCV bars."""
+"""Step B derived sidecar fields from merged OHLCV bars."""
 
 from __future__ import annotations
 
