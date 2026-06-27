@@ -13,6 +13,7 @@
 | [docs/DESIGN.md](docs/DESIGN.md) | 전체 설계 (스키마, shard, merge, 이벤트, 운영) |
 | [docs/COLLECTION_PLAN.md](docs/COLLECTION_PLAN.md) | **수집·보강 계획** (Step A~F, sidecar) |
 | [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) | 향후 작업 · 리마인더 (폐지 종목 ⏰) |
+| [docs/STEP_C_HANDOFF.md](docs/STEP_C_HANDOFF.md) | **Step C chunk별** 진행·partial 목록·실행 이력 |
 | [reference/moa/](reference/moa/) | moa 원본 파일 사본 (참고용) |
 
 ## 빠른 시작

@@ -105,7 +105,7 @@ cd c:\cursor\00_archive
 - **Naver 현재주식수×종가 fallback 없음** — 실패 시 `manifest/enrich_mcap_failures.jsonl`
 - [x] 구현·chunk enrich **0~5** 1차 실행 (2026-06-24, 구 `etf_nav` 방식) → **재적재 대상**
 - [x] **2026-06-25** 정책 반영 코드 (`etf_aum`, fallback 제거); chunk **0** 재적재 ✅
-- [ ] chunk **1~5** 재적재 잔여 · chunk **6~8** **최초 적재** (chunk별 1~3개씩) → [NEXT_STEPS.md](./NEXT_STEPS.md) **chunk 상태표**
+- [ ] chunk **1~5** 재적재 잔여 · chunk **6~8** **최초 적재** (chunk별 1~3개씩) → [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md) **chunk별 섹션**
 
 ```powershell
 python -m scripts.archive_enrich_market_cap --chunk N
@@ -233,7 +233,7 @@ data/naver_daily_archive/
 
 ## 다음 작업 (즉시)
 
-1. **Step C** — chunk **1~5** 재적재 잔여 · chunk **6~8** 최초 적재 (chunk 0 ✅) — [NEXT_STEPS.md](./NEXT_STEPS.md) chunk 상태표
+1. **Step C** — chunk **1~5** 재적재 잔여 · chunk **6~8** 최초 적재 (chunk 0 ✅) — [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md) chunk별
 2. **Step D** — 검증·status
 3. **Step E** — 2019→2000 OHLCV (병렬 가능)
 4. **Step F** — 일별 시장구분 enrich (상장폐지 **직전**)
