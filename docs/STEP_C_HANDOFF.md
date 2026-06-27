@@ -2,13 +2,15 @@
 
 > **AI/개발자**: Step C 작업 시 **이 파일을 chunk 번호별로** 읽을 것. chunk 1~5를 「재적재 잔여」로 **묶어서 요약하지 말 것**. 실측 갱신: `python -m scripts.report_step_c_status` 후 `python -m scripts.update_step_c_handoff`.
 
-**마지막 실측**: 2026-06-27 00:21 UTC (manifest `enrich_tasks.jsonl` 최신 줄 기준)
+**마지막 실측**: 2026-06-27 02:01 UTC (manifest `enrich_tasks.jsonl` 최신 줄 기준)
 
 **완료 기준**: 종목당 2020~2026 **7연도** 모두 `status=done` + `method` ∈ {`pykrx_mcap`, `etf_aum`}.
 
-**전체 합계**: 2583 / 3,945종 7연도 완료 · partial 981 · none 381
+**전체 합계**: 2584 / 3,945종 7연도 완료 · partial 980 · none 381
 
 머신 리더블 스냅샷: `data/naver_daily_archive/reports/step_c_status_snapshot.json`
+
+**실행·partial retry 상세 로그**: [STEP_C_RUN_LOG.md](./STEP_C_RUN_LOG.md)
 
 ---
 
@@ -18,10 +20,14 @@
 |------|-------|------|
 | **6/24** | 0~5 | 1차 실행 — 구방식 (`shares_x_close`/`etf_nav` 등) → **재적재 대상** |
 | **6/25 14:41** | 0 | 수정 코드(`etf_aum`/`pykrx_mcap`) **재적재 완료** ✅ |
-| **6/25 11:09~** | 1 | 재적재 시작 → **중단** (~1050/3416 task, 세션 이전 handoff) |
-| **6/25** | 1~5 | chunk별 2차 실행 (6/25 reports) — chunk 4·5는 KRX 세션 만료로 failed 多 |
-| **6/26 11:28~18:47** | 1~8 | ⚠️ AI **일괄 실행** (사용자 의도: chunk 1 재적재만) |
+| **6/25 11:09~** | 1 | 재적재 시작 → **중단** (~1050/3416 task) |
+| **6/25** | 1~5 | chunk별 2차 실행 — chunk 4·5 KRX 세션 만료 failed 多 |
+| **6/26 11:28~18:47** | 1~8 | ⚠️ AI **일괄 실행** (의도: chunk 1만) |
 | **6/26 18:49~22:45** | 4~8 | ⚠️ AI **재일괄** → chunk 8 **사용자 중단** |
+| **6/27** | 1~2 | **partial retry** (`--symbols`) — known failure, 변화 없음 |
+| **6/27** | 3~5 | **partial+none retry** — chunk 4 **117690** ETF `etf_aum` 완료 (+1) |
+| **6/27** | 6 | **최초 적재 전체** (~50분) — 7yr **189/487**, failed 599 |
+| **6/27** | — | **chunk 0~6 handoff·RUN_LOG 저장**, **chunk 7~8 → 새 채팅** |
 
 ---
 
@@ -30,14 +36,14 @@
 | chunk | 코드 범위 | 성격 | 7yr 완료 | partial | none | fail_log | 다음 액션 |
 |-------|-----------|------|----------|---------|------|----------|-----------|
 | **0** | 000020~000815 | 재적재 (test) | **50/50** | 0 | 0 | 0 | **완료 — 스킵** |
-| **1** | 000850~014950 | 재적재 | **486/488** | 2 | 0 | 8 | partial 2종 — **KRX no-data 가능**, chunk 재실행 또는 `--symbols` (미구현) 점검 |
-| **2** | 014970~053050 | 재적재 | **484/487** | 3 | 0 | 12 | partial 3종 — **KRX no-data 가능**, chunk 재실행 또는 `--symbols` (미구현) 점검 |
-| **3** | 053060~101670 | 재적재 | **471/487** | 16 | 0 | 52 | partial 16종 + none 0 — **chunk 3 재실행** (~90분) 또는 partial만 수동 retry |
-| **4** | 101680~214320 | 재적재 | **442/487** | 45 | 0 | 131 | partial 45종 + none 0 — **chunk 4 재실행** (~90분) 또는 partial만 수동 retry |
-| **5** | 214330~305720 | 재적재 | **443/487** | 43 | 1 | 120 | partial 43종 + none 1 — **chunk 5 재실행** (~90분) 또는 partial만 수동 retry |
-| **6** | 306040~425040 | 최초 적재 | **189/487** | 297 | 1 | 599 | **최초 적재 이어서** — chunk 6 **1회 전체 실행** (현재 189/487 완료, partial 297) |
+| **1** | 000850~014950 | 재적재 | **486/488** | 2 | 0 | 8 | **partial retry 완료(6/27)** — partial 2 known failure → STEP_C_RUN_LOG.md |
+| **2** | 014970~053050 | 재적재 | **484/487** | 3 | 0 | 12 | **partial retry 완료(6/27)** — partial 3 known failure → STEP_C_RUN_LOG.md |
+| **3** | 053060~101670 | 재적재 | **471/487** | 16 | 0 | 52 | **partial retry 완료(6/27)** — partial 16 known failure → STEP_C_RUN_LOG.md |
+| **4** | 101680~214320 | 재적재 | **443/487** | 44 | 0 | 131 | **partial retry 완료(6/27)** — partial 44 known failure → STEP_C_RUN_LOG.md |
+| **5** | 214330~305720 | 재적재 | **443/487** | 43 | 1 | 120 | **partial retry 완료(6/27)** — partial 43 + none 1 known failure → STEP_C_RUN_LOG.md |
+| **6** | 306040~425040 | 최초 적재 | **189/487** | 297 | 1 | 599 | **1회 전체 실행 완료(6/27)** — 7yr 189/487 → **chunk 7** |
 | **7** | 425420~488720 | 최초 적재 | **0/487** | 486 | 1 | 1634 | **최초 적재** — chunk 7 **1회 전체 실행** (~90분+, KRX 세션 주의) |
-| **8** | 488770~950250 | 최초 적재 | **18/485** | 89 | 378 | 3011 | **최초 적재 이어서** — chunk 8 **1회 전체 실행** (현재 18/485 완료, partial 89) |
+| **8** | 488770~950250 | 최초 적재 | **18/485** | 89 | 378 | 3011 | **최초 적재** — chunk 8 **1회 전체 실행** (6/26 중단, 18/485 7yr 완료) |
 
 ---
 
@@ -62,7 +68,7 @@
 - **범위**: `000850` ~ `014950` (488종)
 - **7연도 완료**: 486 · **partial**: 2 · **none**: 0
 - **failure log** (고유 task): 8
-- **다음 액션**: partial 2종 — **KRX no-data 가능**, chunk 재실행 또는 `--symbols` (미구현) 점검
+- **다음 액션**: **partial retry 완료(6/27)** — partial 2 known failure → STEP_C_RUN_LOG.md
 
 ### 실행 이력 (reports)
 
@@ -70,6 +76,7 @@
 |------|------------|------|--------|---------|
 | `enrich_market_cap_c1_20260625.json` | 2026-06-25T11:09:30+00:00 | 3408 | 8 | pykrx_mcap:3408 |
 | `enrich_market_cap_c1_20260626.json` | 2026-06-26T02:28:32+00:00 | 3408 | 8 | pykrx_mcap:3408 |
+| `enrich_market_cap_c1_20260627.json` | 2026-06-27T00:46:33+00:00 | 6 | 8 | pykrx_mcap:6 |
 
 ### partial 종목 (2개)
 
@@ -85,7 +92,7 @@
 - **범위**: `014970` ~ `053050` (487종)
 - **7연도 완료**: 484 · **partial**: 3 · **none**: 0
 - **failure log** (고유 task): 12
-- **다음 액션**: partial 3종 — **KRX no-data 가능**, chunk 재실행 또는 `--symbols` (미구현) 점검
+- **다음 액션**: **partial retry 완료(6/27)** — partial 3 known failure → STEP_C_RUN_LOG.md
 
 ### 실행 이력 (reports)
 
@@ -93,6 +100,7 @@
 |------|------------|------|--------|---------|
 | `enrich_market_cap_c2_20260625.json` | 2026-06-25T11:38:11+00:00 | 3397 | 12 | pykrx_mcap:3397 |
 | `enrich_market_cap_c2_20260626.json` | 2026-06-26T02:59:43+00:00 | 3397 | 12 | pykrx_mcap:3397 |
+| `enrich_market_cap_c2_20260627.json` | 2026-06-27T00:46:44+00:00 | 9 | 12 | pykrx_mcap:9 |
 
 ### partial 종목 (3개)
 
@@ -109,7 +117,7 @@
 - **범위**: `053060` ~ `101670` (487종)
 - **7연도 완료**: 471 · **partial**: 16 · **none**: 0
 - **failure log** (고유 task): 52
-- **다음 액션**: partial 16종 + none 0 — **chunk 3 재실행** (~90분) 또는 partial만 수동 retry
+- **다음 액션**: **partial retry 완료(6/27)** — partial 16 known failure → STEP_C_RUN_LOG.md
 
 ### 실행 이력 (reports)
 
@@ -117,6 +125,7 @@
 |------|------------|------|--------|---------|
 | `enrich_market_cap_c3_20260625.json` | 2026-06-25T12:06:27+00:00 | 3287 | 122 | pykrx_mcap:3287 |
 | `enrich_market_cap_c3_20260626.json` | 2026-06-26T03:28:53+00:00 | 3357 | 52 | pykrx_mcap:3287, etf_aum:70 |
+| `enrich_market_cap_c3_20260627.json` | 2026-06-27T00:50:39+00:00 | 60 | 52 | pykrx_mcap:60 |
 
 ### partial 종목 (16개)
 
@@ -144,9 +153,9 @@
 ## Chunk 4 — 재적재
 
 - **범위**: `101680` ~ `214320` (487종)
-- **7연도 완료**: 442 · **partial**: 45 · **none**: 0
+- **7연도 완료**: 443 · **partial**: 44 · **none**: 0
 - **failure log** (고유 task): 131
-- **다음 액션**: partial 45종 + none 0 — **chunk 4 재실행** (~90분) 또는 partial만 수동 retry
+- **다음 액션**: **partial retry 완료(6/27)** — partial 44 known failure → STEP_C_RUN_LOG.md
 
 ### 실행 이력 (reports)
 
@@ -154,8 +163,9 @@
 |------|------------|------|--------|---------|
 | `enrich_market_cap_c4_20260625.json` | 2026-06-25T12:37:49+00:00 | 2510 | 899 | pykrx_mcap:2510 |
 | `enrich_market_cap_c4_20260626.json` | 2026-06-26T09:49:20+00:00 | 3279 | 130 | pykrx_mcap:2510, etf_aum:769 |
+| `enrich_market_cap_c4_20260627.json` | 2026-06-27T00:52:29+00:00 | 186 | 129 | pykrx_mcap:179, etf_aum:7 |
 
-### partial 종목 (45개)
+### partial 종목 (44개)
 
 | 종목 | 완료 연도 | 미완 연도·상태 |
 |------|-----------|----------------|
@@ -167,7 +177,6 @@
 | `111380` | 4/7 | 2020(failed/empty), 2021(failed/empty), 2022(failed/empty) |
 | `112290` | 5/7 | 2020(failed/empty), 2021(failed/empty) |
 | `114840` | 6/7 | 2020(failed/empty) |
-| `117690` | 6/7 | 2020(failed/-) |
 | `125020` | 2/7 | 2020(failed/empty), 2021(failed/empty), 2022(failed/empty), 2023(failed/empty), 2024(failed/empty) |
 | `125490` | 2/7 | 2020(failed/empty), 2021(failed/empty), 2022(failed/empty), 2023(failed/empty), 2024(failed/empty) |
 | `126720` | 5/7 | 2020(failed/empty), 2021(failed/empty) |
@@ -212,7 +221,7 @@
 - **범위**: `214330` ~ `305720` (487종)
 - **7연도 완료**: 443 · **partial**: 43 · **none**: 1
 - **failure log** (고유 task): 120
-- **다음 액션**: partial 43종 + none 1 — **chunk 5 재실행** (~90분) 또는 partial만 수동 retry
+- **다음 액션**: **partial retry 완료(6/27)** — partial 43 + none 1 known failure → STEP_C_RUN_LOG.md
 
 ### 실행 이력 (reports)
 
@@ -220,6 +229,7 @@
 |------|------------|------|--------|---------|
 | `enrich_market_cap_c5_20260625.json` | 2026-06-25T13:34:58+00:00 | 1980 | 1429 | pykrx_mcap:1980 |
 | `enrich_market_cap_c5_20260626.json` | 2026-06-26T10:48:56+00:00 | 3289 | 120 | pykrx_mcap:1980, etf_aum:1309 |
+| `enrich_market_cap_c5_20260627.json` | 2026-06-27T01:02:23+00:00 | 188 | 120 | pykrx_mcap:188 |
 
 ### partial 종목 (43개)
 
@@ -280,13 +290,14 @@
 - **범위**: `306040` ~ `425040` (487종)
 - **7연도 완료**: 189 · **partial**: 297 · **none**: 1
 - **failure log** (고유 task): 599
-- **다음 액션**: **최초 적재 이어서** — chunk 6 **1회 전체 실행** (현재 189/487 완료, partial 297)
+- **다음 액션**: **1회 전체 실행 완료(6/27)** — 7yr 189/487 → **chunk 7**
 
 ### 실행 이력 (reports)
 
 | 파일 | 시각 (UTC) | done | failed | methods |
 |------|------------|------|--------|---------|
 | `enrich_market_cap_c6_20260626.json` | 2026-06-26T12:03:58+00:00 | 2810 | 599 | pykrx_mcap:1661, etf_aum:1149 |
+| `enrich_market_cap_c6_20260627.json` | 2026-06-27T01:08:43+00:00 | 2810 | 599 | pykrx_mcap:1661, etf_aum:1149 |
 
 ### partial 종목 (297개)
 
@@ -1111,7 +1122,7 @@
 - **범위**: `488770` ~ `950250` (485종)
 - **7연도 완료**: 18 · **partial**: 89 · **none**: 378
 - **failure log** (고유 task): 3011
-- **다음 액션**: **최초 적재 이어서** — chunk 8 **1회 전체 실행** (현재 18/485 완료, partial 89)
+- **다음 액션**: **최초 적재** — chunk 8 **1회 전체 실행** (6/26 중단, 18/485 7yr 완료)
 
 ### 실행 이력 (reports)
 

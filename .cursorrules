@@ -6,9 +6,9 @@
 
 ## 대화·문서
 - **한국어 존댓말**로만 답변하세요.
-- 합의·handoff·진행 상태: **`docs/NEXT_STEPS.md`** → **`docs/STEP_C_HANDOFF.md`** (Step C chunk별 상세) → **`docs/COLLECTION_PLAN.md`** → **`docs/DESIGN.md`** → **`README.md`** 순.
-- Step C: chunk 1~5를 「재적재 잔여」로 **묶어 요약하지 말 것** — **chunk 번호별** handoff 참조.
-- 새 채팅 handoff 시 `docs/NEXT_STEPS.md`·`docs/STEP_C_HANDOFF.md` 날짜·Step·chunk 번호 갱신. chunk 실행 후 `python -m scripts.update_step_c_handoff`.
+- 합의·handoff·진행 상태: **`docs/NEXT_STEPS.md`** → **`docs/STEP_C_HANDOFF.md`** → **`docs/STEP_C_RUN_LOG.md`** (실행·누락 사유) → **`docs/COLLECTION_PLAN.md`** → ...
+- Step C: chunk 1~5를 「재적재 잔여」로 **묶어 요약하지 말 것** — **chunk 번호별** handoff·RUN_LOG 참조.
+- 새 채팅 handoff 시 위 문서 갱신. chunk 실행 후 `python -m scripts.report_step_c_status` → `update_step_c_handoff`.
 
 ## 프로젝트 목적
 - KOSPI/KOSDAQ **일봉 OHLCV** 장기 아카이브 (네이버 `sise_day`, 역순 수집 2026→2000).

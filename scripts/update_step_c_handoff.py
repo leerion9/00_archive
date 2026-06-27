@@ -24,11 +24,19 @@ TIMELINE = """
 |------|-------|------|
 | **6/24** | 0~5 | 1차 실행 — 구방식 (`shares_x_close`/`etf_nav` 등) → **재적재 대상** |
 | **6/25 14:41** | 0 | 수정 코드(`etf_aum`/`pykrx_mcap`) **재적재 완료** ✅ |
-| **6/25 11:09~** | 1 | 재적재 시작 → **중단** (~1050/3416 task, 세션 이전 handoff) |
-| **6/25** | 1~5 | chunk별 2차 실행 (6/25 reports) — chunk 4·5는 KRX 세션 만료로 failed 多 |
-| **6/26 11:28~18:47** | 1~8 | ⚠️ AI **일괄 실행** (사용자 의도: chunk 1 재적재만) |
+| **6/25 11:09~** | 1 | 재적재 시작 → **중단** (~1050/3416 task) |
+| **6/25** | 1~5 | chunk별 2차 실행 — chunk 4·5 KRX 세션 만료 failed 多 |
+| **6/26 11:28~18:47** | 1~8 | ⚠️ AI **일괄 실행** (의도: chunk 1만) |
 | **6/26 18:49~22:45** | 4~8 | ⚠️ AI **재일괄** → chunk 8 **사용자 중단** |
+| **6/27** | 1~2 | **partial retry** (`--symbols`) — known failure, 변화 없음 |
+| **6/27** | 3~5 | **partial+none retry** — chunk 4 **117690** ETF `etf_aum` 완료 (+1) |
+| **6/27** | 6 | **최초 적재 전체** (~50분) — 7yr **189/487**, failed 599 |
+| **6/27** | — | **chunk 0~6 handoff·RUN_LOG 저장**, **chunk 7~8 → 새 채팅** |
 """.strip()
+
+# partial retry 완료일 (chunk 전체 재실행 불필요)
+_PARTIAL_RETRY_DONE = frozenset({1, 2, 3, 4, 5})
+_CHUNK6_FULL_RUN_DONE = True
 
 
 def _fmt_missing(missing: list[dict]) -> str:
@@ -50,13 +58,24 @@ def _next_action(cid: int, s: dict) -> str:
     if nature == "재적재":
         if partial == 0 and none == 0:
             return "**완료 — 스킵**"
+        if cid in _PARTIAL_RETRY_DONE:
+            note = f"partial {partial}"
+            if none:
+                note += f" + none {none}"
+            return f"**partial retry 완료(6/27)** — {note} known failure → STEP_C_RUN_LOG.md"
         if partial <= 3 and none == 0:
-            return f"partial {partial}종 — **KRX no-data 가능**, chunk 재실행 또는 `--symbols` (미구현) 점검"
-        return f"partial {partial}종 + none {none} — **chunk {cid} 재실행** (~90분) 또는 partial만 수동 retry"
+            return (
+                f"partial {partial}종 — **chunk 전체 재실행 불필요**. "
+                f"`--symbols` 로 retry"
+            )
+        return f"partial {partial}종 + none {none} — `--symbols` partial retry 또는 chunk 재실행"
     # 최초 적재
-    if ok == 0 and partial >= n - 5:
-        return f"**최초 적재** — chunk {cid} **1회 전체 실행** (~90분+, KRX 세션 주의)"
-    return f"**최초 적재 이어서** — chunk {cid} **1회 전체 실행** (현재 {ok}/{n} 완료, partial {partial})"
+    if cid == 6 and _CHUNK6_FULL_RUN_DONE:
+        return f"**1회 전체 실행 완료(6/27)** — 7yr {ok}/{n} → **chunk 7**"
+    if cid == 7:
+        return f"**최초 적재** — chunk 7 **1회 전체 실행** (~90분+, KRX 세션 주의)"
+    if cid == 8:
+        return f"**최초 적재** — chunk 8 **1회 전체 실행** (6/26 중단, {ok}/{n} 7yr 완료)"
 
 
 def render(stats: dict[int, dict]) -> str:
@@ -79,6 +98,8 @@ def render(stats: dict[int, dict]) -> str:
         f"**전체 합계**: {total_ok} / 3,945종 7연도 완료 · partial {total_partial} · none {total_none}",
         "",
         "머신 리더블 스냅샷: `data/naver_daily_archive/reports/step_c_status_snapshot.json`",
+        "",
+        "**실행·partial retry 상세 로그**: [STEP_C_RUN_LOG.md](./STEP_C_RUN_LOG.md)",
         "",
         "---",
         "",

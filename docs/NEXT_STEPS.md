@@ -5,7 +5,9 @@
 
 **전체 수집·보강 로드맵**: [COLLECTION_PLAN.md](./COLLECTION_PLAN.md)
 
-**마지막 handoff**: 2026-06-27 (Step C chunk별 상세 handoff 문서·실측 스크립트 추가)
+**마지막 handoff**: 2026-06-27 (chunk 0~6 완료·문서 저장 — **다음: chunk 7~8 최초 적재**)
+
+**필독 문서**: [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md) (chunk별) · [STEP_C_RUN_LOG.md](./STEP_C_RUN_LOG.md) (실행·누락 사유)
 
 ---
 
@@ -68,6 +70,16 @@
 `.env`: `KRX_ID`, `KRX_PW`  
 설정: `data/naver_daily_archive/config/chunks_enrich.json`
 
+### partial retry vs chunk 전체 (6/27 확정)
+
+| 구분 | 명령 | 용도 |
+|------|------|------|
+| **partial만** | `--chunk N --symbols A B C ...` | chunk 1~5 잔여 종목 retry (몇 분) |
+| **chunk 전체** | `--chunk N` | chunk 6~8 **최초 적재** (~50~90분, skip 없음) |
+
+- chunk 1~5 **partial retry는 6/27 완료** — 잔여는 known failure (봉 없음 / KRX no-data).
+- **301410** (chunk 5 none): ETF AUM API 실패 — Step D 조사 대상.
+
 ### 스크립트 동작 (handoff 시 오해 금지)
 
 - `archive_enrich_market_cap --chunk N` 은 **해당 chunk 전 종목 × 7연도를 전부 API 호출** (완료분 skip 없음).
@@ -88,27 +100,28 @@ python -m scripts.report_step_c_status
 python -m scripts.update_step_c_handoff
 ```
 
-**요약 (2026-06-27 manifest 실측)** — 상세·partial 목록은 handoff 문서 참조:
+**요약 (2026-06-27 manifest 실측)** — 상세·partial 목록: handoff · run log
 
-| chunk | 성격 | 7yr 완료 | partial | none | 다음 액션 (요약) |
-|-------|------|----------|---------|------|------------------|
-| **0** | 재적재 test | 50/50 | 0 | 0 | 스킵 |
-| **1** | 재적재 | 486/488 | 2 | 0 | partial 2종 점검 (012210, 014950) |
-| **2** | 재적재 | 484/487 | 3 | 0 | partial 3종 점검 |
-| **3** | 재적재 | 471/487 | 16 | 0 | partial 16종 — chunk 3 재실행 또는 retry |
-| **4** | 재적재 | 442/487 | 45 | 0 | partial 45종 — chunk 4 재실행 또는 retry |
-| **5** | 재적재 | 443/487 | 43 | 1 | partial 43 + none 1 — chunk 5 재실행 또는 retry |
-| **6** | 최초 적재 | 189/487 | 297 | 1 | **최초 적재 이어서** (1 chunk) |
-| **7** | 최초 적재 | 0/487 | 486 | 1 | **최초 적재** (1 chunk) |
-| **8** | 최초 적재 | 18/485 | 89 | 378 | **최초 적재** (6/26 중단, 1 chunk) |
+| chunk | 성격 | 7yr 완료 | partial | none | 상태 |
+|-------|------|----------|---------|------|------|
+| **0** | 재적재 test | 50/50 | 0 | 0 | ✅ 완료 |
+| **1** | 재적재 | 486/488 | 2 | 0 | ✅ partial retry 완료 — known failure 2종 |
+| **2** | 재적재 | 484/487 | 3 | 0 | ✅ partial retry 완료 — known failure 3종 |
+| **3** | 재적재 | 471/487 | 16 | 0 | ✅ partial retry 완료 — known failure 16종 |
+| **4** | 재적재 | 443/487 | 44 | 0 | ✅ partial retry 완료 — **117690** ETF 개선, 잔여 44 known |
+| **5** | 재적재 | 443/487 | 43 | 1 | ✅ partial retry 완료 — **301410** ETF 조사, 잔여 43 known |
+| **6** | 최초 적재 | 189/487 | 297 | 1 | ✅ **1회 전체 실행 완료(6/27)** |
+| **7** | 최초 적재 | 0/487 | 486 | 1 | ❌ **다음 작업** — 1회 전체 실행 |
+| **8** | 최초 적재 | 18/485 | 89 | 378 | ❌ chunk 7 후 — 1회 전체 실행 (6/26 중단분) |
 
-**합계**: 2,583 / 3,945 · partial 981 · none 381
+**합계**: 2,584 / 3,945 · partial 980 · none 381
 
 **AI는 사용자 확인 없이 chunk 실행하지 말 것.** 금지: chunk 1~8 for-loop 일괄 실행.
 
 ```powershell
 cd c:\cursor\00_archive
-python -m scripts.archive_enrich_market_cap --chunk 6   # 예: 사용자가 chunk 6 지정 시만
+# 다음 세션 (chunk 7만 — 사용자 지정 시)
+python -m scripts.archive_enrich_market_cap --chunk 7
 ```
 
 ---
@@ -129,14 +142,15 @@ python -m scripts.archive_enrich_market_cap --chunk 6   # 예: 사용자가 chun
 
 ## Git
 
-**2026-06-26 커밋·푸시됨** (`e95f8ba`): `.cursorrules`, Step C handoff, KRX 세션 갱신  
+**2026-06-27 커밋·푸시 예정**: chunk 0~6 진행·STEP_C_RUN_LOG·handoff  
+**2026-06-26** (`b294c52`): STEP_C_HANDOFF·실측 스크립트  
 원격: [leerion9/00_archive](https://github.com/leerion9/00_archive), branch `master`  
 `data/` — git 제외 (로컬)
 
 ---
 
-## 새 채팅 시작 문장 (예시)
+## 새 채팅 시작 문장 (chunk 7~8)
 
-> `docs/STEP_C_HANDOFF.md` **chunk 6** 섹션 읽고, Step C **chunk 6 최초 적재만** 터미널 실행해줘. (1~8 일괄 실행 금지)
+> `docs/NEXT_STEPS.md` · `docs/STEP_C_RUN_LOG.md` 읽고, Step C **chunk 7 최초 적재만** 터미널 실행해줘. (chunk 8·1~8 일괄 금지)
 
-> `docs/STEP_C_HANDOFF.md` **chunk 1** partial 2종(012210, 014950)만 점검해줘.
+> chunk 7 완료 후 **chunk 8** 최초 적재 1회만. 완료 시 `report_step_c_status` → `update_step_c_handoff` → RUN_LOG 갱신.
