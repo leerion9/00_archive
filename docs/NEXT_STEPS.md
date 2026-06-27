@@ -142,7 +142,7 @@ python -m scripts.archive_enrich_market_cap --chunk 7
 
 ## Git
 
-**2026-06-27 커밋·푸시 예정**: chunk 0~6 진행·STEP_C_RUN_LOG·handoff  
+**2026-06-27 커밋·푸시됨** (`9939071`): chunk 0~6 handoff·STEP_C_RUN_LOG  
 **2026-06-26** (`b294c52`): STEP_C_HANDOFF·실측 스크립트  
 원격: [leerion9/00_archive](https://github.com/leerion9/00_archive), branch `master`  
 `data/` — git 제외 (로컬)
