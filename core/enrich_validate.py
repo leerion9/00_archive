@@ -67,11 +67,14 @@ def validate_derived_symbol(
     expected = filter_frame_by_years(expected_full, years_list) if years_list else expected_full
     actual = read_features_parquet(feat_file)
 
+    required_cols = {"date", *FEATURE_COLUMNS}
+    actual_cols = set(actual.columns)
+    missing = sorted(required_cols - actual_cols)
     checks.append(
         CheckResult(
             "columns",
-            list(actual.columns) == ["date", *FEATURE_COLUMNS],
-            f"columns={list(actual.columns)}",
+            not missing,
+            f"columns={list(actual.columns)} missing={missing}",
         )
     )
     checks.append(

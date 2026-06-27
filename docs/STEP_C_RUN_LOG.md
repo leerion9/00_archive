@@ -142,13 +142,36 @@
 
 ---
 
-## 다음 세션 (chunk 7 → 8)
+## 2026-06-27 — chunk 7 **최초 적재** (전체)
 
-| chunk | 명령 | 예상 |
-|-------|------|------|
-| **7** | `python -m scripts.archive_enrich_market_cap --chunk 7` | ~90분+, KRX 세션 주의 |
-| **8** | `python -m scripts.archive_enrich_market_cap --chunk 8` | ~90분+ (6/26 중단분 이어서 **전체 1회**) |
+- **명령**: `python -m scripts.archive_enrich_market_cap --chunk 7`
+- **성격**: 최초 적재 (487종 × 7연도 = 3409 task)
+- **소요**: ~42분 (11:03~11:45 KST)
+- **task**: 3409 · **done** 1776 · **failed** 1633
+- **methods**: `pykrx_mcap` 530 · **`etf_aum` 1246**
+- **리포트**: `data/naver_daily_archive/reports/enrich_market_cap_c7_20260627.json`
+- **7yr 완료**: **0/487** · partial **486** · none **1**
 
-완료 후: `python -m scripts.report_step_c_status` → `python -m scripts.update_step_c_handoff` → 본 RUN_LOG에 섹션 추가.
+→ chunk 7 **1회 전체 실행 완료**. 코드 범위(425420~)가 신규상장·ETF 위주 — 2020~2021 `empty` 다수로 **7yr 완료 0**은 정상. partial 486·none 1 = known failure.
+
+---
+
+## 2026-06-27 — chunk 8 **최초 적재** (전체)
+
+- **명령**: `python -m scripts.archive_enrich_market_cap --chunk 8`
+- **성격**: 최초 적재 (485종 × 7연도 = 3395 task, 6/26 중단 후 재실행)
+- **소요**: ~19분 (11:46~12:05 KST)
+- **task**: 3395 · **done** 384 · **failed** 3011
+- **methods**: `pykrx_mcap` 178 · **`etf_aum` 206**
+- **리포트**: `data/naver_daily_archive/reports/enrich_market_cap_c8_20260627.json`
+- **7yr 완료**: **18/485** · partial **89** · none **378**
+
+→ chunk 8 **1회 전체 실행 완료**. **none 378** = merged OHLCV 자체 없음. 6/26 run과 done/failed 동일(384/3011) — manifest 변화 없음, 재확인 완료.
+
+---
+
+## Step D 완료 (2026-06-27)
+
+chunk **7~8** 최초 적재 · **Step D** 옵션 B+C 검증 완료. known failure → [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md).
 
 ---

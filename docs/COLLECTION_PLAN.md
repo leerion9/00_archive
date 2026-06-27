@@ -92,7 +92,7 @@ cd c:\cursor\00_archive
 
 ---
 
-### Step C — `archive_enrich_market_cap` (pykrx) 🔄
+### Step C — `archive_enrich_market_cap` (pykrx) ✅
 
 **목적**: 일별 규모(`market_cap`) sidecar 보강
 
@@ -107,7 +107,7 @@ cd c:\cursor\00_archive
 - [x] **2026-06-25** 정책 반영 코드 (`etf_aum`, fallback 제거); chunk **0** 재적재 ✅
 - [x] chunk **0~5** 재적재 — partial retry 완료 (2026-06-27, [STEP_C_RUN_LOG.md](./STEP_C_RUN_LOG.md))
 - [x] chunk **6** 최초 적재 1회 전체 실행 (2026-06-27)
-- [ ] chunk **7~8** **최초 적재** (chunk별 1개씩) → [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md) · [NEXT_STEPS.md](./NEXT_STEPS.md)
+- [x] chunk **7~8** **최초 적재** (2026-06-27) → Step C **완료**
 
 ```powershell
 python -m scripts.archive_enrich_market_cap --chunk N
@@ -119,18 +119,22 @@ python -m scripts.archive_enrich_market_cap --chunk N
 
 ---
 
-### Step D — 검증·리포트
+### Step D — 검증·리포트 ✅
 
-- [ ] 샘플 종목: merged bars ↔ features sidecar date join
-- [ ] null·method 분포 (stock vs etf)
-- [ ] repair_v13 필터 재현 가능 여부 (point-in-time 시총 percentile)
+- [x] 옵션 B: 10종 + parquet 집계 (2026-06-27)
+- [x] 옵션 C: merge·derived 전 종목 3945/3945 PASS (~6.5분)
+- [x] validator Step C sidecar 컬럼 허용
+- [ ] `archive_status --fields` (전체 리포트 CLI, 예정)
+- known failure partial 980 + none 381 → [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) · Step G와 함께 검토
 
 ```powershell
-# python -m scripts.archive_status --fields
+python -m scripts.archive_merge_validate_samples --all
+python -m scripts.archive_enrich_validate_samples --all
+# python -m scripts.archive_status --fields   # 예정
 ```
 
 **선행**: Step C  
-**다음**: Step E (병렬 가능) 또는 백테스트 연동
+**다음**: Step F
 
 ---
 
@@ -235,8 +239,6 @@ data/naver_daily_archive/
 
 ## 다음 작업 (즉시)
 
-1. **Step C** — chunk **7~8** 최초 적재 (chunk 0~6 ✅) — [NEXT_STEPS.md](./NEXT_STEPS.md) · [STEP_C_RUN_LOG.md](./STEP_C_RUN_LOG.md)
-2. **Step D** — 검증·status
-3. **Step E** — 2019→2000 OHLCV (병렬 가능)
-4. **Step F** — 일별 시장구분 enrich (상장폐지 **직전**)
-5. **Step G** — 상장폐지 ⏰
+1. **Step F** — 일별 시장구분 enrich
+2. **Step G** — 상장폐지 ⏰ + known failure(381+980) 정책 (F 후)
+3. ~~**Step E**~~ — 2019→2000 OHLCV ⏸️ 스킵
