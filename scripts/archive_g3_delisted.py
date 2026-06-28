@@ -129,7 +129,11 @@ def run_mcap_chunk(base_dir: Path, symbols: list[str], years: list[int], chunk_i
     path = base_dir / "reports" / f"enrich_market_cap_g3_c{chunk_id}_{date_tag}.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n=== g3 market_cap chunk {chunk_id} ===")
-    print(f"tasks={report.tasks_total} done={report.done} failed={report.failed} methods={report.methods}")
+    print(
+        f"tasks={report.tasks_total} done={report.done} failed={report.failed} "
+        f"skipped_expected={report.skipped_expected} expected_blank={report.expected_blank} "
+        f"methods={report.methods}"
+    )
     print(f"report: {path}")
     return payload
 

@@ -16,6 +16,7 @@ from config.settings import settings
 from core.archive_schema import utc_now_iso
 from core.chunk_bounds import write_chunk_config
 from core.listing_events import delisted_master_path, load_delisted_master
+from core.listing_window import legacy_skip_tag, year_skip_reason
 from core.manifest import load_tasks_jsonl, merge_tasks, save_tasks_jsonl
 from core.shard import task_id
 
@@ -29,15 +30,8 @@ def _parse_years(args: argparse.Namespace) -> list[int]:
 
 
 def _should_skip_year(rec: dict, year: int) -> str:
-    listing = rec.get("listing_date") or ""
-    delisting = rec.get("delisting_date") or ""
-    y_end = f"{year}1231"
-    y_start = f"{year}0101"
-    if listing and listing > y_end:
-        return f"listing_after_{year}"
-    if delisting and delisting < y_start:
-        return f"delisted_before_{year}"
-    return ""
+    reason = year_skip_reason(rec.get("listing_date"), rec.get("delisting_date"), year)
+    return legacy_skip_tag(reason, year)
 
 
 def build_delisted_tasks(records: list[dict], years: list[int]) -> list[dict]:

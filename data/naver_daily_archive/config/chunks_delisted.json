@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "num_chunks": 4,
+  "total_symbols": 190,
+  "chunks": [
+    {
+      "chunk_id": 0,
+      "from_symbol": "000060",
+      "to_symbol": "029960",
+      "count": 48
+    },
+    {
+      "chunk_id": 1,
+      "from_symbol": "030270",
+      "to_symbol": "068400",
+      "count": 48
+    },
+    {
+      "chunk_id": 2,
+      "from_symbol": "069110",
+      "to_symbol": "141020",
+      "count": 47
+    },
+    {
+      "chunk_id": 3,
+      "from_symbol": "141070",
+      "to_symbol": "450140",
+      "count": 47
+    }
+  ]
+}

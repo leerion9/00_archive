@@ -1,12 +1,15 @@
-"""Step C chunk별 manifest 실측 → stdout + snapshot JSON."""
+"""Step C chunk별 manifest 실측 → stdout + snapshot JSON (legacy + relabeled)."""
 from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
+from core.mcap_taxonomy import PHASE1_YEARS, analyze_mcap_taxonomy, summarize_relabel_delta
+
 GOOD_METHODS = frozenset({"pykrx_mcap", "etf_aum"})
-YEARS = list(range(2020, 2027))
+YEARS = list(PHASE1_YEARS)
 
 
 def _root() -> Path:
@@ -87,13 +90,15 @@ def _load_failures_by_chunk(base_dir: Path, cfg: dict) -> dict[int, list[dict]]:
     return by_chunk
 
 
-def analyze(base_dir: Path) -> dict[int, dict]:
+def analyze(base_dir: Path) -> dict:
     cfg = json.loads((base_dir / "config" / "chunks_enrich.json").read_text(encoding="utf-8"))
     latest = _load_latest_mcap_tasks(base_dir)
     reports = _load_reports(base_dir)
     failures = _load_failures_by_chunk(base_dir, cfg)
 
     result: dict[int, dict] = {}
+    relabel_totals = Counter()
+
     for ch in cfg["chunks"]:
         cid = int(ch["chunk_id"])
         fs, ts = ch["from_symbol"], ch["to_symbol"]
@@ -116,6 +121,28 @@ def analyze(base_dir: Path) -> dict[int, dict]:
             for year, status, method in details:
                 if status == "done" and method and method not in GOOD_METHODS:
                     old_method_tasks[method] += 1
+
+        relabeled = analyze_mcap_taxonomy(
+            base_dir,
+            syms,
+            years=YEARS,
+            open_task_limit=10,
+            partial_limit=10,
+            none_limit=10,
+        )
+        delta = summarize_relabel_delta(
+            {"complete_7yr": ok_n, "partial": partial_n, "none": none_n},
+            relabeled,
+        )
+        for key, val in delta.items():
+            if key.startswith("relabeled_") or key.startswith("task_"):
+                relabel_totals[key] += int(val)
+        relabel_totals["legacy_complete_7yr"] += ok_n
+        relabel_totals["legacy_partial"] += partial_n
+        relabel_totals["legacy_none"] += none_n
+        relabel_totals["legacy_failed_reclassified"] += relabeled.get(
+            "legacy_failed_reclassified_to_skipped_expected", 0
+        )
 
         result[cid] = {
             "chunk_id": cid,
@@ -141,6 +168,13 @@ def analyze(base_dir: Path) -> dict[int, dict]:
             "none_symbols": none_list,
             "legacy_method_tasks_remaining": dict(old_method_tasks),
             "failure_log_unique_tasks": len(failures.get(cid, [])),
+            "relabeled": {
+                "task_counts": relabeled.get("task_counts"),
+                "delta": delta,
+                "open_tasks": relabeled.get("open_tasks"),
+                "partial_symbols": relabeled.get("partial_symbols"),
+                "none_symbols": relabeled.get("none_symbols"),
+            },
             "reports": [
                 {
                     "file": name,
@@ -152,46 +186,73 @@ def analyze(base_dir: Path) -> dict[int, dict]:
                 for name, r in reports.get(cid, [])
             ],
         }
-    return result
+
+    all_merged = sorted(p.stem for p in (base_dir / "merged").glob("*.json"))
+    universe_relabel = analyze_mcap_taxonomy(
+        base_dir,
+        all_merged,
+        years=YEARS,
+        open_task_limit=50,
+        partial_limit=30,
+        none_limit=30,
+    )
+
+    return {
+        "at_iso": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "schema_version": 2,
+        "chunks": {str(k): v for k, v in result.items()},
+        "relabel_totals_by_chunk": dict(relabel_totals),
+        "universe_relabel": universe_relabel,
+    }
 
 
 def main() -> None:
     base = _root() / "data" / "naver_daily_archive"
-    stats = analyze(base)
+    payload = analyze(base)
+    chunks = payload["chunks"]
     snapshot = base / "reports" / "step_c_status_snapshot.json"
     snapshot.parent.mkdir(parents=True, exist_ok=True)
-    snapshot.write_text(
-        json.dumps({str(k): v for k, v in stats.items()}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    snapshot.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     total_ok = total_partial = total_none = 0
-    for cid in sorted(stats):
-        s = stats[cid]
+    for cid in sorted(chunks, key=int):
+        s = chunks[str(cid)]
         total_ok += s["complete_7yr"]
         total_partial += s["partial"]
         total_none += s["none"]
+        rel = s.get("relabeled") or {}
+        delta = rel.get("delta") or {}
         print(
-            f"chunk {cid:1d} | {s['from_symbol']}~{s['to_symbol']} | "
-            f"syms={s['symbol_count']} | 7yr_ok={s['complete_7yr']} "
+            f"chunk {int(cid):1d} | {s['from_symbol']}~{s['to_symbol']} | "
+            f"syms={s['symbol_count']} | legacy 7yr_ok={s['complete_7yr']} "
             f"partial={s['partial']} none={s['none']} | "
+            f"relabeled complete={delta.get('relabeled_tradable_complete')} "
+            f"partial={delta.get('relabeled_tradable_partial')} "
+            f"none={delta.get('relabeled_tradable_none')} | "
             f"fail_log={s['failure_log_unique_tasks']}"
         )
+        tc = rel.get("task_counts") or {}
+        if tc.get("skipped_expected"):
+            print(f"  relabel tasks: skipped_expected={tc.get('skipped_expected')} failed={tc.get('failed', 0)}")
         for rep in s["reports"]:
             print(
                 f"  report {rep['file']}: done={rep['done']} failed={rep['failed']} at={rep['at_iso']}"
             )
-        if s["partial_symbols"]:
-            print(f"  partial symbols ({len(s['partial_symbols'])}):")
-            for ps in s["partial_symbols"]:
-                miss = ps["missing"]
-                print(f"    {ps['symbol']} {ps['done_years']}/7 -> {miss}")
         print()
 
+    rt = payload.get("relabel_totals_by_chunk") or {}
+    uni = payload.get("universe_relabel") or {}
+    utc = uni.get("task_counts") or {}
     print(
-        f"TOTAL (excl chunk0 test semantics): "
-        f"7yr_ok={total_ok} partial={total_partial} none={total_none}"
+        f"TOTAL legacy: 7yr_ok={total_ok} partial={total_partial} none={total_none}"
     )
+    print(
+        f"TOTAL relabeled: tradable_complete={rt.get('relabeled_tradable_complete')} "
+        f"partial={rt.get('relabeled_tradable_partial')} none={rt.get('relabeled_tradable_none')} | "
+        f"tasks skipped_expected={rt.get('task_skipped_expected')} failed={rt.get('task_failed_tradable')} "
+        f"legacy_failed_reclassified={rt.get('legacy_failed_reclassified')}"
+    )
+    print(f"universe ({len(uni.get('years', []))}yr tasks={uni.get('tasks_total')}): {utc}")
     print(f"snapshot: {snapshot}")
 
 

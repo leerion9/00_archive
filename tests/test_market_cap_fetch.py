@@ -5,9 +5,11 @@ from __future__ import annotations
 import pandas as pd
 
 from core.market_cap_fetch import (
+    MARKET_ETF_ETN,
     build_etf_aum_frame,
     is_etf_or_etn,
     load_etf_etn_symbol_set,
+    should_use_etf_aum,
 )
 
 
@@ -18,6 +20,34 @@ def test_is_etf_or_etn_by_name_and_set():
     assert is_etf_or_etn("069660", "KIWOOM 200", known=set())
     assert not is_etf_or_etn("301410", "PLUS 코스닥150", known=set())
     assert is_etf_or_etn("500023", "신한 레버리지 ETN(H)", known=set())
+
+
+def test_should_use_etf_aum_listing_market_overrides_name():
+    assert should_use_etf_aum("301410", "PLUS 코스닥150", listing_market=MARKET_ETF_ETN)
+    assert not should_use_etf_aum("005930", "삼성전자", listing_market="KOSPI")
+    assert should_use_etf_aum("500023", "신한 레버리지 ETN(H)", listing_market=MARKET_ETF_ETN)
+
+
+def test_fetch_pykrx_etx_aum_routes_etn(monkeypatch):
+    from core.market_cap_fetch import fetch_pykrx_etx_aum_krx
+
+    calls: list[str] = []
+
+    def fake_etf(sym, f, t):
+        calls.append("etf")
+        return pd.DataFrame()
+
+    def fake_etn(sym, f, t):
+        calls.append("etn")
+        return pd.DataFrame({"date": ["20260102"], "market_cap": [1.0], "shares_outstanding": [1]})
+
+    monkeypatch.setattr("core.market_cap_fetch.get_etx_kind", lambda s: "ETN")
+    monkeypatch.setattr("core.market_cap_fetch.fetch_pykrx_etf_aum_krx", fake_etf)
+    monkeypatch.setattr("core.market_cap_fetch.fetch_pykrx_etn_aum_krx", fake_etn)
+
+    df = fetch_pykrx_etx_aum_krx("500020", "20260101", "20260131")
+    assert len(df) == 1
+    assert calls == ["etn"]
 
 
 def test_build_etf_aum_frame():

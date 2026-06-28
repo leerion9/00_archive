@@ -194,7 +194,8 @@ def render(stats: dict[int, dict]) -> str:
 
 def main() -> None:
     base = Path(__file__).resolve().parents[1] / "data" / "naver_daily_archive"
-    stats = analyze(base)
+    payload = analyze(base)
+    stats = {int(k): v for k, v in payload.get("chunks", {}).items()}
     out = Path(__file__).resolve().parents[1] / "docs" / "STEP_C_HANDOFF.md"
     out.write_text(render(stats), encoding="utf-8")
     print(f"wrote {out}")

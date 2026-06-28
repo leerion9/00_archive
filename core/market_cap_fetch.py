@@ -10,6 +10,9 @@ import pandas as pd
 
 _log = logging.getLogger("archive")
 
+# Step F listing_events market tag for ETF/ETN (same as enrich_market.MARKET_ETF_ETN).
+MARKET_ETF_ETN = "etf외"
+
 _NAME_ETF_HINTS = (
     "KODEX",
     "TIGER",
@@ -83,6 +86,19 @@ def is_etf_or_etn(symbol: str, name: str = "", *, known: Optional[Set[str]] = No
     return any(h.upper() in text for h in _NAME_ETF_HINTS)
 
 
+def should_use_etf_aum(
+    symbol: str,
+    name: str = "",
+    *,
+    known: Optional[Set[str]] = None,
+    listing_market: str = "",
+) -> bool:
+    """True when ETF/ETN AUM path applies (listing_events etf외 or heuristics)."""
+    if str(listing_market or "").strip() == MARKET_ETF_ETN:
+        return True
+    return is_etf_or_etn(symbol, name, known=known)
+
+
 def is_etf_like(name: str) -> bool:
     """Backward-compatible name check (prefer is_etf_or_etn with pykrx set)."""
     return is_etf_or_etn("", name)
@@ -136,6 +152,90 @@ def fetch_pykrx_market_cap(symbol: str, fromdate: str, todate: str) -> pd.DataFr
     return result.dropna(subset=["market_cap"]).reset_index(drop=True)
 
 
+def get_etx_kind(symbol: str) -> str:
+    """Return ETF/ETN kind from pykrx EtxTicker (empty if unknown)."""
+    try:
+        from pykrx.website.krx.etx.ticker import EtxTicker
+
+        df = EtxTicker().df
+        sym = str(symbol).strip().zfill(6)
+        if sym not in df.index:
+            return ""
+        row = df.loc[sym]
+        kind_col = None
+        for col in row.index:
+            if str(col) in ("종류", "kind") or "종류" in str(col):
+                kind_col = col
+                break
+        kind = row[kind_col] if kind_col is not None else row.iloc[3]
+        return str(kind).strip().upper()
+    except Exception as exc:
+        _log.debug("get_etx_kind failed %s: %s", symbol, exc)
+        return ""
+
+
+def fetch_pykrx_etn_aum_krx(symbol: str, fromdate: str, todate: str) -> pd.DataFrame:
+    """
+    ETN AUM from KRX 개별종목 시세 (MDCSTAT06601).
+
+    Uses PER1SECU_INDIC_VAL x LIST_SHRS; falls back to INDIC_VAL_AMT or MKTCAP.
+    """
+    from pykrx.website.krx.etx.ticker import get_etx_isin
+    from pykrx.website.krx.krxio import KrxWebIo
+
+    class _개별종목시세_ETN(KrxWebIo):
+        @property
+        def bld(self):
+            return "dbms/MDC/STAT/standard/MDCSTAT06601"
+
+        def fetch(self, strtDd: str, endDd: str, isin: str) -> pd.DataFrame:
+            result = self.read(isuCd=isin, strtDd=strtDd, endDd=endDd)
+            return pd.DataFrame(result.get("output") or [])
+
+    try:
+        isin = get_etx_isin(str(symbol).strip())
+    except Exception as exc:
+        _log.debug("get_etx_isin failed %s: %s", symbol, exc)
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
+
+    raw = _개별종목시세_ETN().fetch(fromdate, todate, isin)
+    if raw is None or raw.empty:
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
+
+    rows: list[dict] = []
+    for _, row in raw.iterrows():
+        date_key = pd.to_datetime(str(row.get("TRD_DD", "")).replace("/", "-"), errors="coerce")
+        if pd.isna(date_key):
+            continue
+        nav = _parse_krx_number(row.get("PER1SECU_INDIC_VAL"))
+        shares = _parse_krx_number(row.get("LIST_SHRS"))
+        official_aum = _parse_krx_number(row.get("INDIC_VAL_AMT"))
+        mktcap = _parse_krx_number(row.get("MKTCAP"))
+
+        market_cap = float("nan")
+        if pd.notna(nav) and pd.notna(shares) and nav > 0 and shares > 0:
+            market_cap = nav * shares
+        elif pd.notna(official_aum) and official_aum > 0:
+            market_cap = official_aum
+        elif pd.notna(mktcap) and mktcap > 0:
+            market_cap = mktcap
+
+        if pd.isna(market_cap) or market_cap <= 0:
+            continue
+
+        rows.append(
+            {
+                "date": date_key.strftime("%Y%m%d"),
+                "market_cap": market_cap,
+                "shares_outstanding": shares if pd.notna(shares) and shares > 0 else pd.NA,
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
+    return pd.DataFrame(rows).reset_index(drop=True)
+
+
 def fetch_pykrx_etf_aum_krx(symbol: str, fromdate: str, todate: str) -> pd.DataFrame:
     """
     ETF/ETN AUM from KRX 개별종목시세_ETF: daily NAV(LST_NAV) x LIST_SHRS.
@@ -186,6 +286,25 @@ def fetch_pykrx_etf_aum_krx(symbol: str, fromdate: str, todate: str) -> pd.DataF
     return pd.DataFrame(rows).reset_index(drop=True)
 
 
+def fetch_pykrx_etx_aum_krx(symbol: str, fromdate: str, todate: str) -> pd.DataFrame:
+    """Route ETF -> 개별종목시세_ETF, ETN -> MDCSTAT06601; fallback try both."""
+    kind = get_etx_kind(symbol)
+    if kind == "ETN":
+        df = fetch_pykrx_etn_aum_krx(symbol, fromdate, todate)
+        if not df.empty:
+            return df
+        return fetch_pykrx_etf_aum_krx(symbol, fromdate, todate)
+    if kind == "ETF":
+        df = fetch_pykrx_etf_aum_krx(symbol, fromdate, todate)
+        if not df.empty:
+            return df
+        return fetch_pykrx_etn_aum_krx(symbol, fromdate, todate)
+    df = fetch_pykrx_etf_aum_krx(symbol, fromdate, todate)
+    if not df.empty:
+        return df
+    return fetch_pykrx_etn_aum_krx(symbol, fromdate, todate)
+
+
 def build_etf_aum_frame(nav_df: pd.DataFrame, shares_df: pd.DataFrame) -> pd.DataFrame:
     if nav_df.empty or shares_df.empty:
         return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"])
@@ -208,6 +327,7 @@ def fetch_market_cap_for_year(
     bars: list[dict],
     *,
     name: str = "",
+    listing_market: str = "",
     krx_id: str = "",
     krx_pw: str = "",
     etf_symbols: Optional[Set[str]] = None,
@@ -223,8 +343,8 @@ def fetch_market_cap_for_year(
 
     refresh_krx_session(krx_id, krx_pw)
 
-    if is_etf_or_etn(sym, name, known=etf_symbols):
-        aum_df = fetch_pykrx_etf_aum_krx(sym, fromdate, todate)
+    if should_use_etf_aum(sym, name, known=etf_symbols, listing_market=listing_market):
+        aum_df = fetch_pykrx_etx_aum_krx(sym, fromdate, todate)
         if not aum_df.empty:
             return aum_df, "etf_aum"
         return pd.DataFrame(columns=["date", "market_cap", "shares_outstanding"]), "failed"

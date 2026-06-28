@@ -1,108 +1,65 @@
 # 향후 작업 · 리마인더
 
-> **AI/개발자**: ⏰ **Step G(상장폐지)** 시작 시 **반드시 먼저 리마인드**할 것.  
-> **known failure(381+980)**: Step G 착수 시 [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) 와 **함께** 정책 확정 (2026-06-27 보류).
+> **AI/개발자**: **Phase 1 (2020~2026) 수집·보강 완료** — 다음은 **백테스트**.  
+> handoff: [PHASE1_HANDOFF.md](./PHASE1_HANDOFF.md) · [COLLECTION_PLAN.md](./COLLECTION_PLAN.md)
 
 **전체 수집·보강 로드맵**: [COLLECTION_PLAN.md](./COLLECTION_PLAN.md)
 
-**마지막 handoff**: 2026-06-28 (Step G **g0~g3 ✅** · **listing_window/fail taxonomy** · g4 대기)
+**마지막 handoff**: 2026-06-28 (**Phase 1 ✅** · mcap 4종 known edge **무시 확정**)
 
-**필독 문서**: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) · [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) · [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md)
+**필독 문서**: [PHASE1_HANDOFF.md](./PHASE1_HANDOFF.md) · [STEP_C_MCAP_RETRY_HANDOFF.md](./STEP_C_MCAP_RETRY_HANDOFF.md) · [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md)
 
 ---
 
-## ⏰ Step G — 상장/폐지 메타 + 상폐 주권 보강 (진행 중)
-
-**2026-06-28** — 상세: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md)
+## ⏭️ 다음 작업 — 백테스트
 
 | 항목 | 내용 |
 |------|------|
-| 추가 유니버스 | FDR 상폐 **주권 − SPAC − KONEX = 190종** (2020~2026) |
-| 통합 목표 | **4,137종** (3,947 + 190) · g1 `listing_events.json` ✅ |
-| **순서** | g2 OHLCV ✅ → g3 enrich ✅ → **g4 검증** ❌ |
-| phase 번호 | **g0~g4** (이번 Step G 고정) · **새** phase는 1-base |
+| 데이터 | `merged/` + `features/` · **4,135종** · **2020~2026** |
+| 메타 | `master/listing_events.json` (로컬 4,137) |
+| 시총 gap | 4종 (`301410` 등) — **필터 제외·null 처리** |
+| Step E | 2019→2000 ⏸️ 스킵 (필요 시 별도 착수) |
 
-known failure(381+980)는 3,945 기존 분 — [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md)
-
----
-
-## Phase 1 OHLCV — **2020~2026 완료** ✅
-
-| 연도 | done | skipped |
-|------|------|---------|
-| 2026~2020 | (각 3,947 task) | 연도별 skip ~2~1,328 |
+```powershell
+python -m scripts.report_step_c_status
+python -m scripts.report_step_g_status
+```
 
 ---
 
-## Step A~G 진행
+## Phase 1 완료 요약 ✅
 
 | Step | 내용 | 상태 |
 |------|------|------|
-| **A** | `archive_merge` (3,945종) | ✅ |
-| **B** | `archive_enrich_derived` (3,945종) | ✅ |
-| **C** | `archive_enrich_market_cap` | ✅ chunk 0~8 |
-| **D** | 검증·status | ✅ **B+C 완료** — [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) |
-| **E** | 2019→2000 OHLCV | ⏸️ **스킵** (2026-06-27) |
-| **F** | 일별 시장구분 (`KOSPI`/`KOSDAQ`/`etf외`) | ✅ **3,945종** — [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) |
-| **G** | listing_events + 상폐 주권 190 enrich | 🔄 **g0~g3 ✅** · g4 검증 대기 — [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) |
+| OHLCV | 2020~2026 Naver 일봉 | ✅ failed **0** |
+| **A** | merge 3,945 + 상폐 190 | ✅ **4,135** |
+| **B** | derived sidecar | ✅ |
+| **C** | market_cap (+ retry S1~5, ETN API) | ✅ failed **23** (4종 무시) |
+| **D** | merge·derived QA | ✅ 3945/3945 |
+| **E** | 2019→2000 | ⏸️ 스킵 |
+| **F** | 일별 시장구분 | ✅ |
+| **G** | listing_events + 상폐 enrich | ✅ g0~g4 |
 
----
+**relabeled mcap**: complete **4,131** / partial **2** / none **2** · skipped_expected **4,769**
 
-## Step D 요약 (2026-06-27)
-
-- **옵션 B**: 10종 PASS + parquet 집계 (~30초)
-- **옵션 C**: merge **3945/3945**, derived **3945/3945** (~6.5분)
-- **known failure**: partial **980** + none **381** = 1,361종 (시총 7yr 미완) → Step G와 함께 검토
-- **조사 보류**: **301410** ETF AUM API 실패
-
-```powershell
-python -m scripts.archive_merge_validate_samples --all
-python -m scripts.archive_enrich_validate_samples --all
-python -m scripts.report_step_c_status
-```
-
-상세: [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md)
-
----
-
-## Step C — chunk 요약 (완료)
-
-| chunk | 7yr | partial | none | 상태 |
-|-------|-----|---------|------|------|
-| 0~5 | 재적재 | known failure | 1 (301410) | ✅ |
-| 6 | 189/487 | 297 | 1 | ✅ |
-| 7 | 0/487 | 486 | 1 | ✅ |
-| 8 | 18/485 | 89 | 378 | ✅ |
-
-**합계**: 2,584 / 3,945 · partial 980 · none 381
-
-상세: [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md)
-
----
-
-## Step F — 시장구분 ✅ (2026-06-27)
-
-- **3,945종** chunk 0~3 적재 + ETF/ETN **1,247종** → `market=etf외`
-- `market` 값: `KOSPI` / `KOSDAQ` / `etf외` · row null **0.48%**
-- 캐시: `master/market_daily/` 1,591일
-
-상세: [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md)
-
----
-
-## Step G — 진행 (2026-06-28)
-
-→ [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) (g0~g4 · KONEX 제외 190종)
+상세 연도·필드 표: [PHASE1_HANDOFF.md](./PHASE1_HANDOFF.md)
 
 ---
 
 ## Git
 
-원격: [leerion9/00_archive](https://github.com/leerion9/00_archive), branch `master`  
-`data/` — git 제외 (로컬)
+원격: [leerion9/00_archive](https://github.com/leerion9/00_archive), branch `master`
+
+`data/` 대용량·수집본 — **git 제외** (PC 로컬). `symbols_active.json`·`config/chunks*.json` 만 추적.
 
 ---
 
-## 새 채팅 시작 문장 (Step G)
+## 새 채팅 시작 문장 (백테스트)
 
-> `docs/STEP_G_HANDOFF.md` · `docs/NEXT_STEPS.md` · `.cursorrules` 읽고 Step G 이어하기. **g0~g3 ✅** · 다음: **listing_window + expected_blank/fail taxonomy** → post-delist spot check → **g4**. KONEX 제외 190종 · handoff 「새 채팅 시작 문장」 블록 복사.
+```
+docs/PHASE1_HANDOFF.md · docs/NEXT_STEPS.md · .cursorrules 읽고 백테스트 이어하기.
+
+【완료】Phase 1 (2020~2026) · 4,135종 · mcap 4종 known edge 무시
+【로컬】data/naver_daily_archive/ merged + features + listing_events
+【다음】백테스트 설계·실행
+```

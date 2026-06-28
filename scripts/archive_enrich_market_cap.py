@@ -44,11 +44,12 @@ def _print_summary(report) -> None:
     print("\n=== enrich_market_cap summary ===")
     print(
         f"chunk={report.chunk_id} years={report.years} tasks={report.tasks_total} "
-        f"done={report.done} failed={report.failed} skipped={report.skipped}"
+        f"done={report.done} failed={report.failed} skipped={report.skipped} "
+        f"skipped_expected={report.skipped_expected} expected_blank={report.expected_blank}"
     )
     if report.methods:
         print(f"methods={report.methods}")
-    failed = [r for r in report.results if not r.ok and r.error]
+    failed = [r for r in report.results if r.status == "failed"]
     if failed:
         print(f"failed sample ({min(10, len(failed))}):")
         for r in failed[:10]:
@@ -93,11 +94,13 @@ def main() -> None:
         _log.warning("KRX_ID/KRX_PW not set - pykrx calls may fail; failures logged to enrich_mcap_failures.jsonl")
 
     _log.info(
-        "archive_enrich_market_cap chunk=%s role=%s symbols~=%s tasks=%s years=%s",
+        "archive_enrich_market_cap chunk=%s role=%s symbols~=%s tasks=%s pending=%s skipped_expected=%s years=%s",
         args.chunk,
         chunk_rows[0].get("role"),
         chunk_rows[0].get("count"),
         len(tasks),
+        sum(1 for t in tasks if t.get("status") == "pending"),
+        sum(1 for t in tasks if t.get("status") == "skipped_expected"),
         years,
     )
 

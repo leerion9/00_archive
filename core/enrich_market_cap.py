@@ -13,12 +13,31 @@ from core.archive_merge import load_collection_plan_years, load_symbols_active, 
 from core.archive_schema import utc_now_iso
 from core.chunk_bounds import assign_chunk, enrich_chunk_config_path, write_enrich_chunk_config
 from core.enrich_derived import append_enrich_task, features_path, read_features_parquet, write_features_parquet
+from core.listing_events import listing_events_path
+from core.listing_window import ListingWindowIndex, SkipReason
 from core.market_cap_fetch import fetch_market_cap_for_year, load_etf_etn_symbol_set, refresh_krx_session
 from core.shard import task_id
 from core.throttle import RequestThrottler
 
 MCAP_STEP = "market_cap"
 MCAP_FAILURES_PATH = "manifest/enrich_mcap_failures.jsonl"
+
+_EXPECTED_SKIP = frozenset({SkipReason.NOT_LISTED_YET, SkipReason.ALREADY_DELISTED})
+
+
+def _load_listing_window(base_dir: Path) -> Optional[ListingWindowIndex]:
+    if not listing_events_path(base_dir).exists():
+        return None
+    return ListingWindowIndex.load(base_dir)
+
+
+def _expected_skip_reason(window: Optional[ListingWindowIndex], symbol: str, year: int) -> Optional[SkipReason]:
+    if window is None:
+        return None
+    reason = window.skip_reason(symbol, year)
+    if reason in _EXPECTED_SKIP:
+        return reason
+    return None
 
 
 def build_mcap_tasks(
@@ -28,6 +47,7 @@ def build_mcap_tasks(
     chunk_id: Optional[int] = None,
     chunk_bounds_path: Optional[Path] = None,
     symbols: Optional[Sequence[str]] = None,
+    use_listing_window: bool = True,
 ) -> List[Dict[str, Any]]:
     active = load_symbols_active(base_dir)
     if symbols is not None:
@@ -38,19 +58,23 @@ def build_mcap_tasks(
     if chunk_id is not None and chunk_bounds_path is not None:
         syms = [s for s in syms if assign_chunk(s, int(chunk_id), chunk_bounds_path)]
 
+    window = _load_listing_window(base_dir) if use_listing_window else None
+
     tasks: List[Dict[str, Any]] = []
     for sym in syms:
         for year in years:
-            tasks.append(
-                {
-                    "task_id": task_id(sym, year),
-                    "symbol": sym,
-                    "name": active.get(sym, ""),
-                    "year": int(year),
-                    "step": MCAP_STEP,
-                    "status": "pending",
-                }
-            )
+            skip_reason = _expected_skip_reason(window, sym, int(year))
+            task: Dict[str, Any] = {
+                "task_id": task_id(sym, year),
+                "symbol": sym,
+                "name": active.get(sym, ""),
+                "year": int(year),
+                "step": MCAP_STEP,
+                "status": "skipped_expected" if skip_reason else "pending",
+            }
+            if skip_reason:
+                task["skip_reason"] = skip_reason.value
+            tasks.append(task)
     return tasks
 
 
@@ -112,9 +136,11 @@ class McapTaskResult:
     symbol: str
     year: int
     ok: bool
+    status: str = "done"
     rows: int = 0
     method: str = ""
     error: str = ""
+    skip_reason: str = ""
 
 
 @dataclass
@@ -126,6 +152,8 @@ class EnrichMcapReport:
     done: int = 0
     failed: int = 0
     skipped: int = 0
+    skipped_expected: int = 0
+    expected_blank: int = 0
     methods: Dict[str, int] = field(default_factory=dict)
     results: List[McapTaskResult] = field(default_factory=list)
 
@@ -140,6 +168,8 @@ class EnrichMcapReport:
             "done": self.done,
             "failed": self.failed,
             "skipped": self.skipped,
+            "skipped_expected": self.skipped_expected,
+            "expected_blank": self.expected_blank,
             "methods": self.methods,
             "results": [
                 {
@@ -147,13 +177,49 @@ class EnrichMcapReport:
                     "symbol": r.symbol,
                     "year": r.year,
                     "ok": r.ok,
+                    "status": r.status,
                     "rows": r.rows,
                     "method": r.method,
                     "error": r.error,
+                    "skip_reason": r.skip_reason,
                 }
                 for r in self.results
             ],
         }
+
+
+def _record_skipped_expected(
+    base_dir: Path,
+    report: EnrichMcapReport,
+    *,
+    tid: str,
+    sym: str,
+    year: int,
+    skip_reason: str,
+) -> None:
+    result = McapTaskResult(
+        task_id=tid,
+        symbol=sym,
+        year=year,
+        ok=True,
+        status="skipped_expected",
+        skip_reason=skip_reason,
+    )
+    report.results.append(result)
+    report.skipped_expected += 1
+    append_enrich_task(
+        base_dir,
+        {
+            "at_iso": utc_now_iso(),
+            "task_id": tid,
+            "symbol": sym,
+            "year": year,
+            "step": MCAP_STEP,
+            "status": "skipped_expected",
+            "skip_reason": skip_reason,
+            "error": "",
+        },
+    )
 
 
 def run_mcap_enrich(
@@ -164,6 +230,7 @@ def run_mcap_enrich(
     krx_id: str = "",
     krx_pw: str = "",
     throttler: Optional[RequestThrottler] = None,
+    use_listing_window: bool = True,
 ) -> EnrichMcapReport:
     years = sorted({int(t["year"]) for t in tasks}, reverse=True)
     report = EnrichMcapReport(
@@ -173,6 +240,7 @@ def run_mcap_enrich(
         tasks_total=len(tasks),
     )
 
+    window = _load_listing_window(base_dir) if use_listing_window else None
     max_year = max(int(t["year"]) for t in tasks)
     etf_symbols = load_etf_etn_symbol_set(f"{max_year}1231")
     feature_cache: dict[str, pd.DataFrame] = {}
@@ -185,10 +253,24 @@ def run_mcap_enrich(
         sym = str(task["symbol"])
         year = int(task["year"])
         name = str(task.get("name", "") or "")
+        listing_market = window.listing_market(sym) if window is not None else ""
+
+        if task.get("status") == "skipped_expected":
+            _record_skipped_expected(
+                base_dir,
+                report,
+                tid=tid,
+                sym=sym,
+                year=year,
+                skip_reason=str(task.get("skip_reason") or ""),
+            )
+            continue
 
         merged_file = merged_path(base_dir, sym)
         if not merged_file.exists():
-            result = McapTaskResult(task_id=tid, symbol=sym, year=year, ok=False, error="no_merged")
+            result = McapTaskResult(
+                task_id=tid, symbol=sym, year=year, ok=False, status="skipped", error="no_merged"
+            )
             report.results.append(result)
             report.skipped += 1
             append_enrich_task(
@@ -215,6 +297,7 @@ def run_mcap_enrich(
                 year,
                 bars,
                 name=name,
+                listing_market=listing_market,
                 krx_id=krx_id,
                 krx_pw=krx_pw,
                 etf_symbols=etf_symbols,
@@ -224,8 +307,54 @@ def run_mcap_enrich(
 
             if mcap_df.empty or method in ("empty", "failed"):
                 err = f"no market cap ({method})"
+                skip_reason = _expected_skip_reason(window, sym, year)
+                year_bars = [
+                    b for b in bars if str(b.get("date", "")).startswith(str(int(year)))
+                ]
+                if skip_reason is not None or (method == "empty" and not year_bars):
+                    blank_reason = (
+                        skip_reason.value
+                        if skip_reason is not None
+                        else "no_ohlcv_for_year"
+                    )
+                    status = "expected_blank"
+                    result = McapTaskResult(
+                        task_id=tid,
+                        symbol=sym,
+                        year=year,
+                        ok=True,
+                        status=status,
+                        method=method,
+                        error=err,
+                        skip_reason=blank_reason,
+                    )
+                    report.results.append(result)
+                    report.expected_blank += 1
+                    append_enrich_task(
+                        base_dir,
+                        {
+                            "at_iso": utc_now_iso(),
+                            "task_id": tid,
+                            "symbol": sym,
+                            "year": year,
+                            "step": MCAP_STEP,
+                            "status": status,
+                            "method": method,
+                            "skip_reason": blank_reason,
+                            "row_count": 0,
+                            "error": err,
+                        },
+                    )
+                    continue
+
                 result = McapTaskResult(
-                    task_id=tid, symbol=sym, year=year, ok=False, method=method, error=err
+                    task_id=tid,
+                    symbol=sym,
+                    year=year,
+                    ok=False,
+                    status="failed",
+                    method=method,
+                    error=err,
                 )
                 report.results.append(result)
                 report.failed += 1
@@ -260,6 +389,7 @@ def run_mcap_enrich(
                 symbol=sym,
                 year=year,
                 ok=True,
+                status="done",
                 rows=len(mcap_df),
                 method=method,
             )
@@ -282,7 +412,12 @@ def run_mcap_enrich(
             )
         except Exception as exc:
             result = McapTaskResult(
-                task_id=tid, symbol=sym, year=year, ok=False, error=str(exc)
+                task_id=tid,
+                symbol=sym,
+                year=year,
+                ok=False,
+                status="failed",
+                error=str(exc),
             )
             report.results.append(result)
             report.failed += 1

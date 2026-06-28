@@ -3,9 +3,11 @@
 > **AI/개발자**: Step G **실행 전 이 파일 전체** + [NEXT_STEPS.md](./NEXT_STEPS.md) 를 읽을 것.  
 > **실제 수집·적재는 새 채팅에서** 사용자 지정 chunk/단계만 터미널 실행 (일괄 for-loop 금지).
 
-**마지막 갱신**: 2026-06-28 (g0~g3 ✅ · g4 검증 대기)
+**마지막 갱신**: 2026-06-28 (g0~g4 ✅ · Phase 1 ✅ · mcap 4종 무시)
 
-**선행 완료**: Step A~D ✅ · Step F ✅ · Step E ⏸️ 스킵
+**선행 완료**: Step A~D ✅ · Step F ✅ · Step E ⏸️ · **Phase 1** → [PHASE1_HANDOFF.md](./PHASE1_HANDOFF.md)
+
+**mcap retry 이어하기**: [STEP_C_MCAP_RETRY_HANDOFF.md](./STEP_C_MCAP_RETRY_HANDOFF.md)
 
 ---
 
@@ -17,7 +19,7 @@
 | **g1** | `listing_events.json` (4,137종) | ✅ 2026-06-28 |
 | **g2** | 190종 OHLCV (2020~2026) | ✅ 2026-06-28 |
 | **g3** | 190종 merge·B·C·F | ✅ 2026-06-28 |
-| **g4** | 검증 | ❌ 대기 |
+| **g4** | 검증 | ✅ 2026-06-28 |
 
 > **넘버링**: 이번 Step G는 **g0~g4 고정**. 앞으로 **새** phase·프로젝트는 1-base(g1, g2 …).
 
@@ -150,35 +152,45 @@ python -m scripts.archive_g3_delisted
 
 ---
 
-## g4 — 검증 (대기)
+## g4 — 검증 ✅ (2026-06-28)
 
 ```powershell
-python -m scripts.archive_merge_validate_samples --symbols <delisted_sample>
-python -m scripts.archive_enrich_validate_samples --symbols <delisted_sample>
+python -m scripts.archive_g4_delisted
+python -m scripts.report_step_g_status
+python -m scripts.verify_post_delist_spot --all-delisted
 ```
+
+| 항목 | 결과 |
+|------|------|
+| merge/derived panel (10종) | **10/10 PASS** |
+| post-delist spot (190종) | **ok=190, anomaly=0** |
+| sidecar merged/features | **190/190** |
+| mcap taxonomy (reclassified) | done **755** · skipped_expected **574** · expected_blank **1** |
+| legacy g3 failed→skipped_expected | **574** |
+| symbol tradable mcap | complete **190** · partial **0** |
+
+**`141020:2024`**: 재시도 → **`expected_blank`** (`no_ohlcv_for_year` — 2024 OHLCV 0건, 폐지 2024-01-03)
+
+**리포트**: `reports/g4_delisted_20260628.json` · `step_g_status_snapshot.json` · `post_delist_spot_20260628.json`
 
 ---
 
-## ⚠️ 알려진 설계 갭 — blank / fail 분류 (2026-06-28 합의 · **다음 채팅 우선**)
+## ⚠️ blank / fail 분류 ✅ (2026-06-28 완료)
 
-### 문제
+### 문제 (해결됨)
 
-g3 시총 **575 failed** = (종목, **연도**) task 실패 건수 (일별·종목 수 아님).  
-현재 `build_mcap_tasks` / `enrich_market_cap`은 **`listing_events.json` 미참조** → 폐지 후·상장 전 연도도 task 생성 후 `empty` → **failed**로 집계.
+g3 시총 **575 failed** 중 **574**는 상장 전·폐지 후 연도 → **`skipped_expected`** 재분류.  
+**1**건만 tradable 구간 실패 (`141020:2024`).
 
-**사용자 합의**: 폐지일 **이후** 데이터 없음 = **정상(`expected_blank`)**.  
-폐지 후 **데이터 있음** = **anomaly** → 사용자 보고·원인 조사.  
-거래 가능 구간 내 API 실패만 **failed**.
+### 구현 완료
 
-### 수정 방향 (구현 전 · [DESIGN.md](./DESIGN.md) §9 보완 예정)
-
-| # | 작업 | 산출 |
+| # | 작업 | 상태 |
 |---|------|------|
-| 1 | `core/listing_window.py` | `is_tradable(symbol, date\|year)` · skip reason enum |
-| 2 | `build_mcap_tasks` + g3/Step C | task prune · empty 시 `expected_blank` vs `failed` |
-| 3 | `scripts/verify_post_delist_spot.py` | 폐지 후 **소수 샘플**만 조회 · empty=ok · data=anomaly 리포트 |
-| 4 | g4 status / `report_step_g_status` | done / expected_blank / partial / failed / anomaly 분리 |
-| 5 | (선택) Phase 1 partial 980·none 381 | listing 기준 재라벨 |
+| 1 | `core/listing_window.py` | ✅ |
+| 2 | `build_mcap_tasks` + enrich | ✅ |
+| 3 | `scripts/verify_post_delist_spot.py` | ✅ |
+| 4 | g4 / `report_step_g_status` | ✅ |
+| 5 | (선택) Phase 1 partial 980·none 381 | ✅ **relabel 집계** · retry S1·2 — [STEP_C_MCAP_RETRY_HANDOFF.md](./STEP_C_MCAP_RETRY_HANDOFF.md) |
 
 ### task status taxonomy (목표)
 
@@ -203,17 +215,30 @@ g3 시총 **575 failed** = (종목, **연도**) task 실패 건수 (일별·종�
 
 ## 이번 세션 구현 요약 (2026-06-28)
 
-### 신규 코드 (git)
+### Step G + mcap taxonomy (git)
 
 | 파일 | 역할 |
 |------|------|
-| `core/delisted_universe.py` | FDR KRX-DELISTING 필터 (주권·SPAC·KONEX) |
-| `core/listing_events.py` | pykrx listing + FDR delisting → JSON |
-| `scripts/archive_listing_events.py` | g0/g1 CLI (`--g0` `--g1`; legacy `--g2`→g1) |
-| `scripts/archive_plan_delisted.py` | g2 OHLCV task manifest (연도 prune) |
-| `scripts/archive_g3_delisted.py` | g3 merge·derived·mcap·market 일괄 |
-| `tests/test_delisted_universe.py` | 필터 unit test |
-| `tests/test_listing_events.py` | payload builder test |
+| `core/listing_window.py` | tradable window · skip reason |
+| `core/mcap_taxonomy.py` | mcap relabel · Phase 1 + G 공통 |
+| `core/post_delist_verify.py` | post-delist spot |
+| `core/step_g_status.py` | Step G status |
+| `core/enrich_market_cap.py` | prune · expected_blank · no_ohlcv_for_year |
+| `scripts/report_step_c_status.py` | v2 legacy + relabeled |
+| `scripts/report_step_g_status.py` | Step G snapshot |
+| `scripts/verify_post_delist_spot.py` | post-delist CLI |
+| `scripts/archive_g4_delisted.py` | g4 validation |
+| `tests/test_listing_window.py` · `test_mcap_taxonomy.py` · `test_post_delist_verify.py` · `test_step_g_status.py` · `test_enrich_market_cap.py` | |
+
+### Step G g0~g2 초기 (git)
+
+| 파일 | 역할 |
+|------|------|
+| `core/delisted_universe.py` | FDR KRX-DELISTING 필터 |
+| `core/listing_events.py` | pykrx + FDR → listing_events |
+| `scripts/archive_listing_events.py` | g0/g1 CLI |
+| `scripts/archive_plan_delisted.py` | g2 OHLCV plan (listing_window prune) |
+| `scripts/archive_g3_delisted.py` | g3 merge·enrich |
 
 ### 변경 코드
 
@@ -229,45 +254,26 @@ g3 시총 **575 failed** = (종목, **연도**) task 실패 건수 (일별·종�
 
 ```
 data/naver_daily_archive/
-├── master/symbols_delisted_joo_2020_2026.json   # g0 · 190
-├── master/listing_events.json                   # g1 · 4,137
-├── config/chunks_delisted.json
-├── manifest/tasks_delisted.jsonl
-├── merged/{190 symbols}.json                    # g3
-├── features/{190 symbols}.parquet               # g3
-└── reports/merge_report_g3_* · enrich_*_g3_*
+├── master/listing_events.json
+├── manifest/mcap_retry_8a_symbols.json          # Session 2 · 95종
+├── reports/step_c_status_snapshot.json          # v2 relabel
+├── reports/step_g_status_snapshot.json
+├── reports/g4_delisted_20260628.json
+├── reports/enrich_market_cap_c8_retry_8a_20260628.json
+└── (Step G merged/features 190종)
 ```
-
-### 시총 소스 (g3)
-
-- **pykrx** `get_market_cap_by_date` · method `pykrx_mcap` · `.env` KRX_ID/PW
-- **Naver 시총 fallback 없음** (Step C 정책 동일)
-
----
-
-## 구현 (코드)
-
-| 모듈 | 역할 |
-|------|------|
-| `core/delisted_universe.py` | FDR 필터 (주권·SPAC·KONEX) |
-| `core/listing_events.py` | pykrx listing + FDR delisting → JSON |
-| `scripts/archive_listing_events.py` | g0/g1 CLI |
-| `scripts/archive_plan_delisted.py` | g2 task manifest |
-| `scripts/archive_g3_delisted.py` | g3 merge·enrich 일괄 |
-| `scripts/archive_collect.py` | `--tasks-file`, `--chunk-config` 확장 |
-
-`.env`: `KRX_ID`, `KRX_PW` (pykrx 상장일)
 
 ---
 
 ## 새 채팅 시작 문장
 
+**mcap retry 이어하기** (다음 작업):
+
 ```
-docs/STEP_G_HANDOFF.md · docs/NEXT_STEPS.md · .cursorrules 읽고 Step G 이어하기.
+docs/STEP_C_MCAP_RETRY_HANDOFF.md · docs/NEXT_STEPS.md · .cursorrules 읽고 이어하기.
 
-【완료】g0~g3 ✅ (190종 · KONEX 제외 · listing_events 4,137)
-【다음 우선】listing_window + expected_blank vs failed (g3 mcap 575 재분류) → verify_post_delist_spot → g4 검증
-【로컬】data/naver_daily_archive merged+features 190종 (git 제외)
-
-chunk 일괄 for-loop 금지 · phase g0~g4.
+【먼저】Session 3 전 필수 설명 — Session 1·2 failed 원인(etf외→pykrx_mcap)과 3-pre(etf_aum 분기) 설명해줘.
+【완료】Step G g0~g4 ✅ · listing_window/mcap taxonomy ✅ · mcap retry Session 1·2 (복구 0)
+【대기】Session 3-pre etf외→etf_aum 코드 수정 → 8-A 재실행
+【로컬】manifest/mcap_retry_8a_symbols.json · failed 1449 (chunk8 1433)
 ```
