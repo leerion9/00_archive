@@ -181,18 +181,28 @@ python -m scripts.archive_enrich_market --chunk 0 --years 2020 2021 2022 2023 20
 
 ---
 
-### Step G — Phase 2 상장폐지 ⏰ (보류 · 리마인드 · 구 Step F)
+### Step G — 상장/폐지 메타 + 상폐 주권 보강 (2026-06-28 확정 · 실행 대기)
 
-**2차 필드·시장구분(Step F)·2019~ merge/enrich 완료 후** 착수. 순서 엄수:
+**Step F 완료 후** 착수. **상세 handoff**: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md)
 
-1. FDR `StockListing('KRX-DELISTING')` → 연도별 폐지 종목·건수 **보고**
-2. 사용자 확인
-3. `listing_events.json` (상장일·폐지일)
-   - v1: FDR `StockListing('KRX')` (현재 상장)
-   - v2: FDR `StockListing('KRX-DELISTING')`
-4. 폐지 종목 OHLCV (FDR / pykrx / 네이버 fallback)
+**사용자 결정**
 
-→ [NEXT_STEPS.md](./NEXT_STEPS.md) ⏰ 항목 참고
+1. FDR `KRX-DELISTING` · 2020~2026 · `SecuGroup=주권` **389 − SPAC 133 = 254종** 추가
+2. **순서**: `listing_events.json` (4,199종 상장·폐지일) → 254종 OHLCV·merge·derived·시총·market
+3. SPAC·채권·워런트·수익증권 **제외**
+4. Step E ⏸️ 스킵
+
+**Phase**
+
+| Phase | 내용 |
+|-------|------|
+| G0 | 254종 마스터 + 연도별 상폐 리포트 |
+| G1 | `master/listing_events.json` |
+| G2 | 254종 OHLCV 2020~2026 |
+| G3 | merge · Step B/C/F |
+| G4 | 검증 |
+
+→ [NEXT_STEPS.md](./NEXT_STEPS.md)
 
 ---
 

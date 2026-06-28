@@ -16,6 +16,7 @@
 | [docs/STEP_C_HANDOFF.md](docs/STEP_C_HANDOFF.md) | **Step C chunk별** 진행·partial 목록·실행 이력 |
 | [docs/STEP_C_RUN_LOG.md](docs/STEP_C_RUN_LOG.md) | Step C **실행·partial retry** 로그 (누락 사유) |
 | [docs/STEP_D_HANDOFF.md](docs/STEP_D_HANDOFF.md) | **Step D** 검증 결과 · known failure · Step F/G 연계 |
+| [docs/STEP_G_HANDOFF.md](docs/STEP_G_HANDOFF.md) | **Step G** 상장/폐지 메타 + 상폐 주권 254 enrich (실행 대기) |
 | [docs/STEP_F_HANDOFF.md](docs/STEP_F_HANDOFF.md) | **Step F** 시장구분 enrich · chunk 적재 가이드 |
 | [reference/moa/](reference/moa/) | moa 원본 파일 사본 (참고용) |
 
@@ -38,7 +39,7 @@ pytest
 1. **Phase 0** — `archive_plan`, 10종 수정주가 교차검증 ✅
 2. **Phase 1** — `archive_collect` OHLCV (2020~2026 ✅, 2019~ 역순 예정)
 3. **Phase 1b~1.5** — merge → sidecar enrich (거래대금·MA5·시총) — [COLLECTION_PLAN.md](docs/COLLECTION_PLAN.md)
-4. **Phase 2** — listing_events, 상장폐지 OHLCV (⏰ enrich 후)
+4. **Phase 2** — listing_events, 상폐 주권 254 (Step G · ⏰ handoff 확정)
 5. **Phase 3** — 백테스트 연동·추가 필드
 
 ## 디렉터리

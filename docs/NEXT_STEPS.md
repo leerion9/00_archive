@@ -5,21 +5,24 @@
 
 **전체 수집·보강 로드맵**: [COLLECTION_PLAN.md](./COLLECTION_PLAN.md)
 
-**마지막 handoff**: 2026-06-27 (Step F **완료** + `etf외` 패치 — **다음: Step G**)
+**마지막 handoff**: 2026-06-28 (Step G **결정·프로세스 확정** — **실행 대기**)
 
-**필독 문서**: [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) · [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) · [STEP_C_HANDOFF.md](./STEP_C_HANDOFF.md)
+**필독 문서**: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) · [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) · [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md)
 
 ---
 
-## ⏰ 상장폐지 종목 (Step G) — Step F **후**
+## ⏰ Step G — 상장/폐지 메타 + 상폐 주권 보강 (실행 대기)
 
-**Step F(시장구분) 완료 후** 착수. **known failure(381+980)** 와 **함께** 유니버스·백테스트 정책 논의 (2026-06-27).
+**2026-06-28 사용자 결정** — 상세: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md)
 
-1. FDR `StockListing('KRX-DELISTING')` → 연도별 폐지 종목·건수 **보고**
-2. 사용자 확인
-3. 폐지 종목 OHLCV·메타 수집 → `master/listing_events.json`
+| 항목 | 내용 |
+|------|------|
+| 추가 유니버스 | FDR 상폐 **주권 389 − SPAC 133 = 254종** (2020~2026) |
+| 통합 목표 | **4,199종** (3,945 + 254) · 2020~2026 |
+| **순서** | **①** `listing_events.json` (전 종목 상장일·폐지일) → **②** 254종 OHLCV·merge·derived·시총·market |
+| 제외 | SPAC · 채권·워런트·수익증권 |
 
-→ [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) known failure 절 참고
+known failure(381+980)는 3,945 기존 분 — [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md)
 
 ---
 
@@ -41,7 +44,7 @@
 | **D** | 검증·status | ✅ **B+C 완료** — [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) |
 | **E** | 2019→2000 OHLCV | ⏸️ **스킵** (2026-06-27) |
 | **F** | 일별 시장구분 (`KOSPI`/`KOSDAQ`/`etf외`) | ✅ **3,945종** — [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) |
-| **G** | 상장폐지 ⏰ + known failure(381+980) | ❌ **다음 작업** |
+| **G** | listing_events + 상폐 주권 254 enrich | ❌ **다음 (프로세스 확정)** — [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) |
 
 ---
 
@@ -87,16 +90,9 @@ python -m scripts.report_step_c_status
 
 ---
 
-## Step G — 다음 작업 ⏰
+## Step G — 실행 대기 (2026-06-28)
 
-**상장폐지** + **known failure(381+980)** 를 **함께** 정책 확정 후 착수.
-
-1. FDR `StockListing('KRX-DELISTING')` → 연도별 폐지 종목·건수 **보고**
-2. 사용자 확인
-3. partial 980 / none 381 시총 미완 · Step F `market` null 0.48% 처리 방침
-4. 폐지 종목 OHLCV·`master/listing_events.json`
-
-→ [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) known failure 절
+→ [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) (Phase G0~G4 · 새 채팅 시작 문장)
 
 ---
 
@@ -109,4 +105,4 @@ python -m scripts.report_step_c_status
 
 ## 새 채팅 시작 문장 (Step G)
 
-> `docs/NEXT_STEPS.md` · `docs/STEP_D_HANDOFF.md` · `docs/STEP_F_HANDOFF.md` 읽고 Step **G**(상장폐지) 착수해줘. known failure(381+980)·Step F market null 0.48% 정책 **함께** 확정 후 진행. Step E 스킵.
+> `docs/STEP_G_HANDOFF.md` · `docs/NEXT_STEPS.md` · `.cursorrules` 읽고 Step G 착수. **G1 listing_events(4,199종) → G2~G3 254종 OHLCV·enrich 전체**. SPAC 제외 · Step E 스kip. handoff 하단 「새 채팅 작업 요청」 참고.
