@@ -18,6 +18,12 @@ from core.archive_schema import (
 from core.bar_merge import merge_bars
 from core.shard import WORKER_IDS
 
+try:
+    from core.listing_events import delisted_master_path, load_delisted_master
+except ImportError:
+    delisted_master_path = None  # type: ignore
+    load_delisted_master = None  # type: ignore
+
 
 def merged_path(base_dir: Path, symbol: str) -> Path:
     return base_dir / "merged" / f"{str(symbol).strip()}.json"
@@ -260,6 +266,15 @@ def merge_symbol(
     )
 
 
+def _delisted_name_map(base_dir: Path) -> Dict[str, str]:
+    if load_delisted_master is None or delisted_master_path is None:
+        return {}
+    path = delisted_master_path(base_dir)
+    if not path.exists():
+        return {}
+    return {str(r["symbol"]).zfill(6): str(r.get("name") or "") for r in load_delisted_master(path)}
+
+
 def merge_all(
     base_dir: Path,
     *,
@@ -271,6 +286,7 @@ def merge_all(
         raise ValueError("years_planned is empty; pass --years or write config/collection_plan.json")
 
     active = load_symbols_active(base_dir)
+    delisted_names = _delisted_name_map(base_dir)
     workers = discover_raw_workers(base_dir)
 
     raw_symbols: set[str] = set()
@@ -291,7 +307,7 @@ def merge_all(
     )
 
     for sym in target_symbols:
-        name = active.get(sym, "")
+        name = active.get(sym, "") or delisted_names.get(sym, "")
         result = merge_symbol(
             base_dir,
             sym,

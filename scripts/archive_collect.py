@@ -12,6 +12,7 @@ import logging
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 from config.settings import settings
 from core.archive_schema import build_chunk_payload, raw_chunk_path, utc_now_iso, write_chunk
@@ -76,11 +77,13 @@ def run_collect(
     chunk_id: int | None = None,
     retry_failed: bool = False,
     symbols_only: set[str] | None = None,
+    tasks_path: Path | None = None,
+    chunk_bounds_path: Path | None = None,
 ) -> dict:
     base = settings.base_dir
-    tasks_path = base / "manifest" / "tasks.jsonl"
+    tasks_path = tasks_path or (base / "manifest" / "tasks.jsonl")
     progress_path = base / "manifest" / "progress.jsonl"
-    bounds_path = chunk_config_path(base)
+    bounds_path = chunk_bounds_path or chunk_config_path(base)
 
     tasks = load_tasks_jsonl(tasks_path)
     if not tasks:
@@ -248,6 +251,16 @@ def main() -> None:
         nargs="*",
         help="Only collect these symbol codes (optional)",
     )
+    parser.add_argument(
+        "--tasks-file",
+        default="",
+        help="Task manifest path (default manifest/tasks.jsonl)",
+    )
+    parser.add_argument(
+        "--chunk-config",
+        default="",
+        help="Chunk bounds JSON (default config/chunks.json)",
+    )
     args = parser.parse_args()
 
     worker_id = str(args.worker).strip().lower()
@@ -262,6 +275,13 @@ def main() -> None:
     )
 
     sym_set = frozenset(str(s).strip() for s in args.symbols) if args.symbols else None
+    base = settings.base_dir
+    tasks_path = Path(args.tasks_file) if args.tasks_file else None
+    if tasks_path is not None and not tasks_path.is_absolute():
+        tasks_path = base / tasks_path
+    chunk_bounds_path = Path(args.chunk_config) if args.chunk_config else None
+    if chunk_bounds_path is not None and not chunk_bounds_path.is_absolute():
+        chunk_bounds_path = base / chunk_bounds_path
 
     run_collect(
         worker_id,
@@ -269,6 +289,8 @@ def main() -> None:
         chunk_id=chunk_id if sym_set is None else None,
         retry_failed=args.retry_failed,
         symbols_only=set(sym_set) if sym_set else None,
+        tasks_path=tasks_path,
+        chunk_bounds_path=chunk_bounds_path,
     )
 
 

@@ -15,7 +15,7 @@ from pathlib import Path
 from config.settings import settings
 from core.archive_schema import utc_now_iso
 from core.chunk_bounds import write_chunk_config
-from core.manifest import load_tasks_jsonl, save_tasks_jsonl
+from core.manifest import load_tasks_jsonl, merge_tasks, save_tasks_jsonl
 from core.naver_symbol_master import load_symbol_master
 from core.shard import chunk_config_path, task_id
 
@@ -43,15 +43,6 @@ def build_tasks(symbols: dict[str, str], years: list[int]) -> list[dict]:
                 }
             )
     return tasks
-
-
-def merge_tasks(existing: list[dict], new_tasks: list[dict]) -> list[dict]:
-    by_id = {str(t["task_id"]): t for t in existing}
-    for t in new_tasks:
-        tid = str(t["task_id"])
-        if tid not in by_id:
-            by_id[tid] = t
-    return sorted(by_id.values(), key=lambda t: (str(t["symbol"]), -int(t["year"])))
 
 
 def write_symbols_active(path: Path, symbols: dict[str, str]) -> None:

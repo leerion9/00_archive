@@ -27,6 +27,15 @@ def save_tasks_jsonl(path: Path, tasks: Iterable[Dict[str, Any]]) -> None:
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
+def merge_tasks(existing: List[Dict[str, Any]], new_tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    by_id = {str(t["task_id"]): t for t in existing}
+    for t in new_tasks:
+        tid = str(t["task_id"])
+        if tid not in by_id:
+            by_id[tid] = t
+    return sorted(by_id.values(), key=lambda t: (str(t["symbol"]), -int(t["year"])))
+
+
 def append_progress(path: Path, entry: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:

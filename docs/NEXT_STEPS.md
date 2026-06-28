@@ -5,22 +5,22 @@
 
 **전체 수집·보강 로드맵**: [COLLECTION_PLAN.md](./COLLECTION_PLAN.md)
 
-**마지막 handoff**: 2026-06-28 (Step G **결정·프로세스 확정** — **실행 대기**)
+**마지막 handoff**: 2026-06-28 (Step G **g0~g3 ✅** · **listing_window/fail taxonomy** · g4 대기)
 
 **필독 문서**: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) · [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) · [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md)
 
 ---
 
-## ⏰ Step G — 상장/폐지 메타 + 상폐 주권 보강 (실행 대기)
+## ⏰ Step G — 상장/폐지 메타 + 상폐 주권 보강 (진행 중)
 
-**2026-06-28 사용자 결정** — 상세: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md)
+**2026-06-28** — 상세: [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md)
 
 | 항목 | 내용 |
 |------|------|
-| 추가 유니버스 | FDR 상폐 **주권 389 − SPAC 133 = 254종** (2020~2026) |
-| 통합 목표 | **4,199종** (3,945 + 254) · 2020~2026 |
-| **순서** | **①** `listing_events.json` (전 종목 상장일·폐지일) → **②** 254종 OHLCV·merge·derived·시총·market |
-| 제외 | SPAC · 채권·워런트·수익증권 |
+| 추가 유니버스 | FDR 상폐 **주권 − SPAC − KONEX = 190종** (2020~2026) |
+| 통합 목표 | **4,137종** (3,947 + 190) · g1 `listing_events.json` ✅ |
+| **순서** | g2 OHLCV ✅ → g3 enrich ✅ → **g4 검증** ❌ |
+| phase 번호 | **g0~g4** (이번 Step G 고정) · **새** phase는 1-base |
 
 known failure(381+980)는 3,945 기존 분 — [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md)
 
@@ -44,7 +44,7 @@ known failure(381+980)는 3,945 기존 분 — [STEP_D_HANDOFF.md](./STEP_D_HAND
 | **D** | 검증·status | ✅ **B+C 완료** — [STEP_D_HANDOFF.md](./STEP_D_HANDOFF.md) |
 | **E** | 2019→2000 OHLCV | ⏸️ **스킵** (2026-06-27) |
 | **F** | 일별 시장구분 (`KOSPI`/`KOSDAQ`/`etf외`) | ✅ **3,945종** — [STEP_F_HANDOFF.md](./STEP_F_HANDOFF.md) |
-| **G** | listing_events + 상폐 주권 254 enrich | ❌ **다음 (프로세스 확정)** — [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) |
+| **G** | listing_events + 상폐 주권 190 enrich | 🔄 **g0~g3 ✅** · g4 검증 대기 — [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) |
 
 ---
 
@@ -90,9 +90,9 @@ python -m scripts.report_step_c_status
 
 ---
 
-## Step G — 실행 대기 (2026-06-28)
+## Step G — 진행 (2026-06-28)
 
-→ [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) (Phase G0~G4 · 새 채팅 시작 문장)
+→ [STEP_G_HANDOFF.md](./STEP_G_HANDOFF.md) (g0~g4 · KONEX 제외 190종)
 
 ---
 
@@ -105,4 +105,4 @@ python -m scripts.report_step_c_status
 
 ## 새 채팅 시작 문장 (Step G)
 
-> `docs/STEP_G_HANDOFF.md` · `docs/NEXT_STEPS.md` · `.cursorrules` 읽고 Step G 착수. **G1 listing_events(4,199종) → G2~G3 254종 OHLCV·enrich 전체**. SPAC 제외 · Step E 스kip. handoff 하단 「새 채팅 작업 요청」 참고.
+> `docs/STEP_G_HANDOFF.md` · `docs/NEXT_STEPS.md` · `.cursorrules` 읽고 Step G 이어하기. **g0~g3 ✅** · 다음: **listing_window + expected_blank/fail taxonomy** → post-delist spot check → **g4**. KONEX 제외 190종 · handoff 「새 채팅 시작 문장」 블록 복사.
