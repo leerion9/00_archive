@@ -16,9 +16,18 @@ venv/
 # Archive data (large, crawled)
 data/naver_daily_archive/raw/
 data/naver_daily_archive/merged/
+data/naver_daily_archive/features/
+data/naver_daily_archive/fundamentals_events/
+data/naver_daily_archive/fundamentals_daily_test/
 data/naver_daily_archive/manifest/
 data/naver_daily_archive/logs/
 data/naver_daily_archive/reports/
+data/naver_daily_archive/master/dart_corp_codes.xml
+data/naver_daily_archive/master/dart_corp_codes.zip
+data/naver_daily_archive/master/dart_quota.json
+data/naver_daily_archive/master/listing_events.json
+data/naver_daily_archive/master/market_daily/
+data/naver_daily_archive/master/symbols_delisted_joo_2020_2026.json
 data/kr_symbol_master.json
 data/last_repair_symbols.txt
 data/recollect_symbols.txt

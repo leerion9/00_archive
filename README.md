@@ -12,6 +12,7 @@
 |------|------|
 | [docs/DESIGN.md](docs/DESIGN.md) | 전체 설계 (스키마, shard, merge, 이벤트, 운영) |
 | [docs/COLLECTION_PLAN.md](docs/COLLECTION_PLAN.md) | **수집·보강 계획** (Step A~F, sidecar) |
+| [docs/FUNDAMENTALS_SCHEMA.md](docs/FUNDAMENTALS_SCHEMA.md) | **재무 sidecar** (DART 1차, 이벤트+일별 as-of) |
 | [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) | 향후 작업 · 리마인더 (폐지 종목 ⏰) |
 | [docs/STEP_C_HANDOFF.md](docs/STEP_C_HANDOFF.md) | **Step C chunk별** 진행·partial 목록·실행 이력 |
 | [docs/STEP_C_RUN_LOG.md](docs/STEP_C_RUN_LOG.md) | Step C **실행·partial retry** 로그 (누락 사유) |

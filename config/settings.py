@@ -30,6 +30,10 @@ class Settings:
     max_pages_per_year_task: int
     krx_id: str
     krx_pw: str
+    dart_api_key: str
+    dart_daily_hard_limit: int
+    dart_daily_soft_limit: int
+    dart_delay_sec: float
 
 
 def _env_int(name: str, default: int) -> int:
@@ -69,6 +73,11 @@ def load_settings() -> Settings:
         max_pages_per_year_task=_env_int("ARCHIVE_MAX_PAGES_PER_YEAR_TASK", 30),
         krx_id=os.getenv("KRX_ID", "").strip(),
         krx_pw=os.getenv("KRX_PW", "").strip(),
+        dart_api_key=os.getenv("DART_API_KEY", "").strip(),
+        # OpenDART: published daily allowance 40,000 — soft stop earlier.
+        dart_daily_hard_limit=_env_int("DART_DAILY_HARD_LIMIT", 40_000),
+        dart_daily_soft_limit=_env_int("DART_DAILY_SOFT_LIMIT", 35_000),
+        dart_delay_sec=_env_float("DART_DELAY_SEC", 0.15),
     )
 
 
