@@ -25,6 +25,7 @@ data/naver_daily_archive/reports/
 data/naver_daily_archive/master/dart_corp_codes.xml
 data/naver_daily_archive/master/dart_corp_codes.zip
 data/naver_daily_archive/master/dart_quota.json
+data/naver_daily_archive/master/fundamentals_d2_run.log
 data/naver_daily_archive/master/listing_events.json
 data/naver_daily_archive/master/market_daily/
 data/naver_daily_archive/master/symbols_delisted_joo_2020_2026.json

@@ -4,7 +4,7 @@
 
 ---
 
-## 0. 인증
+## 1. 인증
 
 | 항목 | 값 |
 |------|-----|
@@ -20,7 +20,7 @@ DART_API_KEY=발급받은40자키
 
 ---
 
-## 1. 레이어 A — 이벤트 원본 (희소)
+## 2. 레이어 A — 이벤트 원본 (희소)
 
 경로: `data/naver_daily_archive/fundamentals_events/{symbol}.parquet`
 
@@ -53,7 +53,7 @@ DART_API_KEY=발급받은40자키
 
 ---
 
-## 2. 레이어 B — 일별 사용 컬럼 (features 확장)
+## 3. 레이어 B — 일별 사용 컬럼 (features 확장)
 
 경로: 테스트는 `fundamentals_daily_test/{symbol}.parquet`  
 전량 적재 시: 기존 `features/{symbol}.parquet`에 조인/컬럼 추가.
@@ -77,24 +77,43 @@ DART_API_KEY=발급받은40자키
 
 ---
 
-## 3. 테스트 범위 (이번 실행)
+## 4. 전량 수집 범위·일정 (2026-07-12)
 
 | 항목 | 값 |
 |------|-----|
-| 종목 | 005930 (삼성전자) |
-| 연도 | 2023, 2024 |
+| 종목 | merged/features 전 종목 (~4,135) |
+| 사업연도 | **2020 ~ 2026** (일봉 아카이브와 동일 창; 일봉 종료≈2026-05) |
 | 보고서 | 11013, 11012, 11014, 11011 |
-| 산출 | `fundamentals_events/005930.parquet` + `fundamentals_daily_test/005930.parquet` |
-| 전량 수집 | **하지 않음** |
+| 산출(이벤트) | `fundamentals_events/{symbol}.parquet` |
+| 진행 파일 | `master/fundamentals_collect_progress.json` |
+| 스크립트 | `python -m scripts.archive_fundamentals_collect` |
+
+| 단계 | 내용 |
+|------|------|
+| **D1** | 전량 스크립트 + 쿼터 가드 + **50종 스모크** (이벤트만) |
+| **D2** | 이벤트 본수집 chunk (soft 35k/일) |
+| **D3** | 이벤트 본수집 계속 |
+| **D4** | 이벤트 본수집 완료·결측/실패 정리 |
+| **D5** | 일별 as-of 확장 + features 조인 |
+| **D6** | 샘플 정합·결측률 리포트 |
 
 ```powershell
 cd c:\cursor\00_archive
+# D1 smoke
+python -m scripts.archive_fundamentals_collect --limit 50 --force --year-from 2020 --year-to 2026
+# 이후 전량 (이어받기)
+python -m scripts.archive_fundamentals_collect --year-from 2020 --year-to 2026
+```
+
+단건 테스트(구):
+
+```powershell
 python -m scripts.archive_fundamentals_test --symbol 005930 --years 2023 2024
 ```
 
 ---
 
-## 4. API
+## 5. API
 
 - 고유번호: `corpCode.xml` zip (`https://opendart.fss.or.kr/api/corpCode.xml`)
 - 주요계정: `fnlttSinglAcnt.json`
